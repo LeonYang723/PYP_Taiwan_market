@@ -155,6 +155,8 @@ def build_period_report(
                     "shop_url": latest_in_period.get("shop_url"),
                     "item_name": latest_in_period.get("item_name"),
                     "keyword": latest_in_period.get("keyword"),
+                    "category": latest_in_period.get("category"),
+                    "size": latest_in_period.get("size"),
                     "price_twd": latest_in_period.get("price_twd"),
                     "url": latest_in_period.get("url"),
                     "sold_estimate": est,

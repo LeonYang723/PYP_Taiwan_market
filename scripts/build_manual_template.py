@@ -91,10 +91,12 @@ def build() -> None:
     # ============================================================
     ws1 = wb.create_sheet("商品資料")
     headers1 = [
-        "日期(YYYY-MM-DD)", "關鍵字", "商品名稱", "賣家名稱", "賣場連結",
-        "商品連結", "價格(NT$)", "累計已售出", "評分", "評分則數", "庫存", "備註",
+        "日期(YYYY-MM-DD)", "卡套類別", "卡套尺寸", "商品名稱", "賣家名稱",
+        "商品連結", "價格(NT$)", "該商品總銷量", "備註",
     ]
-    widths1 = [14, 12, 30, 16, 26, 26, 10, 12, 8, 10, 8, 20]
+    widths1 = [14, 16, 18, 30, 16, 30, 10, 12, 20]
+    # 文字類欄位靠左對齊，其餘置中：B類別、C尺寸、D名稱、E賣家、F連結、I備註
+    LEFT_ALIGN_COLS = (2, 3, 4, 5, 6, 9)
     for col, (h, w) in enumerate(zip(headers1, widths1), start=1):
         c = ws1.cell(row=1, column=col, value=h)
         c.font = HEADER_FONT
@@ -106,15 +108,15 @@ def build() -> None:
     ws1.freeze_panes = "A2"
 
     example_row1 = [
-        "2026-08-24", "PYP", "PYP 卡套 經典款 質感卡夾", "小美精品配件", "https://shopee.tw/shop/1234567",
-        "https://shopee.tw/product/1234567/89012345", 199, 682, 4.9, 210, 300, "範例列，請刪除或覆蓋",
+        "2026-08-24", "掀蓋式卡夾", "一般卡片尺寸", "PYP 卡套 經典款 質感卡夾", "小美精品配件",
+        "https://shopee.tw/product/1234567/89012345", 199, 682, "範例列，請刪除或覆蓋",
     ]
     for col, val in enumerate(example_row1, start=1):
         c = ws1.cell(row=2, column=col, value=val)
         c.font = NORMAL_FONT
         c.fill = EXAMPLE_FILL
         c.border = BORDER
-        c.alignment = Alignment(horizontal="center" if col not in (3, 4, 5, 6, 12) else "left")
+        c.alignment = Alignment(horizontal="left" if col in LEFT_ALIGN_COLS else "center")
 
     for r in range(3, 202):
         for col in range(1, len(headers1) + 1):
@@ -122,7 +124,7 @@ def build() -> None:
             c.fill = INPUT_FILL
             c.font = NORMAL_FONT
             c.border = BORDER
-            c.alignment = Alignment(horizontal="center" if col not in (3, 4, 5, 6, 12) else "left")
+            c.alignment = Alignment(horizontal="left" if col in LEFT_ALIGN_COLS else "center")
 
     date_dv = DataValidation(type="date", operator="between", formula1="2020-01-01", formula2="2035-12-31",
                               showErrorMessage=True, errorTitle="日期格式錯誤", error="請輸入正確日期，例如 2026-08-24")
@@ -132,9 +134,7 @@ def build() -> None:
     num_dv = DataValidation(type="whole", operator="greaterThanOrEqual", formula1="0",
                              showErrorMessage=True, errorTitle="數字錯誤", error="請輸入不小於 0 的整數")
     ws1.add_data_validation(num_dv)
-    num_dv.add("H3:H201")
-    num_dv.add("J3:J201")
-    num_dv.add("K3:K201")
+    num_dv.add("H3:H201")  # 該商品總銷量
 
     # ============================================================
     # Sheet 3: 規格評價統計
@@ -175,7 +175,7 @@ def build() -> None:
         ws2.cell(row=r_off, column=5).number_format = "0.0%"
         # F: 商品累計已售出 = 從「商品資料」表用 INDEX/MATCH 抓
         ws2.cell(row=r_off, column=6,
-                 value=f'=IFERROR(INDEX(商品資料!$H:$H,MATCH(A{r_off},商品資料!$C:$C,0)),"")')
+                 value=f'=IFERROR(INDEX(商品資料!$H:$H,MATCH(A{r_off},商品資料!$D:$D,0)),"")')
         # G: 推估此規格銷量 = E * F
         ws2.cell(row=r_off, column=7,
                  value=f'=IF(OR(E{r_off}="",F{r_off}=""),"",ROUND(E{r_off}*F{r_off},0))')
@@ -198,7 +198,7 @@ def build() -> None:
         ws2.cell(row=r, column=4, value=f'=IF(A{r}="","",SUMIF($A$2:$A$301,A{r},$C$2:$C$301))')
         ws2.cell(row=r, column=5, value=f'=IF(OR(A{r}="",D{r}="",D{r}=0),"",C{r}/D{r})')
         ws2.cell(row=r, column=5).number_format = "0.0%"
-        ws2.cell(row=r, column=6, value=f'=IFERROR(INDEX(商品資料!$H:$H,MATCH(A{r},商品資料!$C:$C,0)),"")')
+        ws2.cell(row=r, column=6, value=f'=IFERROR(INDEX(商品資料!$H:$H,MATCH(A{r},商品資料!$D:$D,0)),"")')
         ws2.cell(row=r, column=7, value=f'=IF(OR(E{r}="",F{r}=""),"",ROUND(E{r}*F{r},0))')
 
     num_dv2 = DataValidation(type="whole", operator="greaterThanOrEqual", formula1="0",

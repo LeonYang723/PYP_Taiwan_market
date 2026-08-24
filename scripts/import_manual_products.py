@@ -104,9 +104,9 @@ def main() -> int:
     now_iso = datetime.now(TAIPEI_TZ).isoformat()
 
     for r in range(FIRST_DATA_ROW, ws.max_row + 1):
-        values = [ws.cell(row=r, column=c).value for c in range(1, 13)]
-        (date_val, keyword, item_name, shop_name, shop_url, product_url,
-         price, sold, rating, rating_count, stock, _note) = values
+        values = [ws.cell(row=r, column=c).value for c in range(1, 10)]
+        (date_val, category, size, item_name, shop_name, product_url,
+         price, sold, _note) = values
 
         if not item_name or not str(item_name).strip():
             continue  # 空白列，略過
@@ -122,7 +122,7 @@ def main() -> int:
         shop_name_s = str(shop_name).strip() if shop_name else ""
 
         shopid, itemid, is_synthetic = extract_ids(
-            str(product_url or ""), str(shop_url or ""), item_name_s, shop_name_s
+            str(product_url or ""), "", item_name_s, shop_name_s
         )
         if is_synthetic:
             synthetic_warnings.append(f"第 {r} 列「{item_name_s}」")
@@ -130,19 +130,21 @@ def main() -> int:
         row = {
             "date": date_str,
             "timestamp": now_iso,
-            "keyword": str(keyword or "").strip() or "(手動輸入)",
+            "keyword": "(手動輸入)",
             "itemid": itemid,
             "shopid": shopid,
             "shop_name": shop_name_s or None,
             "item_name": item_name_s,
+            "category": str(category).strip() if category else None,
+            "size": str(size).strip() if size else None,
             "price_twd": to_float(price),
             "sold_recent": None,
             "historical_sold": to_int(sold),
-            "rating_avg": to_float(rating),
-            "rating_count": to_int(rating_count),
-            "stock": to_int(stock),
+            "rating_avg": None,
+            "rating_count": None,
+            "stock": None,
             "url": str(product_url or ""),
-            "shop_url": str(shop_url or ""),
+            "shop_url": None,
         }
         rows_by_date[date_str][itemid] = row  # 同一天同一商品，用最後一列覆蓋
 
