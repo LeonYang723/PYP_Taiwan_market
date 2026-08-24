@@ -1,6 +1,6 @@
 {
-  "last_updated": "2026-08-25T03:55:37.737457+08:00",
+  "last_updated": "2026-08-25T04:12:09.845457+08:00",
   "status": "no_data",
-  "message": "尚未有任何快照資料，請確認 GitHub Actions 排程是否已成功執行過至少一次。",
+  "message": "尚未有任何快照資料，請先用 scripts/import_manual_products.py 匯入手動蒐集表的資料。",
   "days_tracked": 0
 }
