@@ -49,6 +49,11 @@ jobs:
         run: |
           git config user.name "pyp-shopee-tracker-bot"
           git config user.email "actions@users.noreply.github.com"
+          # 如果今天爬蟲被擋、完全沒抓到資料，data/raw 底下可能連資料夾都沒被建出來，
+          # 這裡先強制確保這兩個資料夾存在，避免 `git add` 對一個不存在的路徑報
+          # fatal: pathspec 錯誤而中斷整個 workflow。就算是空資料夾，Git 也不會
+          # 當成有變動，後面「沒有變動就跳過 commit」的判斷一樣正常運作。
+          mkdir -p data/raw docs/data
           git add data/raw docs/data
           if git diff --cached --quiet; then
             echo "沒有資料變動，略過 commit。"
