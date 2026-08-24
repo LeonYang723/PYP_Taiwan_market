@@ -1,0 +1,58 @@
+name: 蝦皮 PYP 市場資料抓取與報表更新
+
+on:
+  schedule:
+    # 每天 UTC 01:00 執行 = 台北時間 09:00
+    - cron: "0 1 * * *"
+  workflow_dispatch: {}   # 允許在 GitHub 網頁上手動點「Run workflow」立即執行一次
+
+permissions:
+  contents: write   # 需要寫入權限才能把抓到的資料 commit 回 repo
+
+concurrency:
+  group: scrape-and-report
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: 執行蝦皮搜尋爬蟲
+        id: scrape
+        # 就算爬蟲被擋（例如回傳非 0 exit code），也讓 workflow 繼續往下跑，
+        # 這樣至少能重新產生報表（雖然資料沒更新），並且在下面的 log 留下失敗紀錄，
+        # 而不是讓整個排程直接紅字失敗、卻沒人注意到。
+        continue-on-error: true
+        run: python scraper/shopee_scraper.py
+
+      - name: 標記爬蟲是否成功
+        run: |
+          if [ "${{ steps.scrape.outcome }}" != "success" ]; then
+            echo "::warning::今天的蝦皮爬蟲執行失敗或被擋下（outcome=${{ steps.scrape.outcome }}），今天不會有新的商品快照。請檢查 Actions log，若持續發生請參考 README「當爬蟲被封鎖時怎麼辦」。"
+          fi
+
+      - name: 重新產生季報 / 年報 JSON
+        run: python scripts/build_reports.py
+
+      - name: Commit 並 push 更新的資料
+        run: |
+          git config user.name "pyp-shopee-tracker-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/raw docs/data
+          if git diff --cached --quiet; then
+            echo "沒有資料變動，略過 commit。"
+          else
+            git commit -m "chore: 自動更新蝦皮 PYP 商品快照與報表 ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+            git push
+          fi
