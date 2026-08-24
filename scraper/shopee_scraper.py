@@ -12,20 +12,28 @@ config/keywords.yaml 設定的關鍵字清單，抓取蝦皮全站上符合關�
 （商品名稱、價格、已售出數量、賣家 shopid 等），存成每日快照，供
 scripts/build_reports.py 進一步彙整成季報/年報。
 
-**為什麼用真的瀏覽器，而不是直接發 HTTP 請求？**
-------------------------------------------------
-一開始這支腳本是用 Python `requests` 直接打 API，結果蝦皮在連線層級（TLS
-指紋）就直接判斷「這不是真的瀏覽器」，回傳 403，就算把 User-Agent、Accept-Language
-等 headers 改得再像瀏覽器也沒用——因為 `requests` 底層的 TLS handshake 特徵，
-跟真的 Chrome/Firefox 就是不一樣，這是比 headers 更底層的偵測方式。
-Playwright 開的是真的 Chromium，連線特徵就是真瀏覽器的特徵，所以改用它在頁面
-的 JS 環境裡呼叫 `fetch()`，效果等同於「使用者真的打開瀏覽器、瀏覽器自己呼叫了
-這個 API」，比較不容易被這種連線層級的防護擋下來。
+**為什麼用真的瀏覽器，而不是直接發 HTTP 請求？（這支腳本走過的兩個階段）**
+------------------------------------------------------------------------
+第一版是用 Python `requests` 直接打 API，結果蝦皮在連線層級（TLS 指紋）就直接
+判斷「這不是真的瀏覽器」，回傳 403，改 headers 完全沒用。
 
-**這樣做仍然不保證 100% 不被擋**，蝦皮還是可能用其他方式偵測（例如偵測
-`navigator.webdriver`、瀏覽器指紋、請求頻率異常等），腳本裡已經做了幾個常見的
-基礎規避（隱藏 `navigator.webdriver`、隨機延遲），但如果之後又開始持續失敗，
-代表蝦皮的防護又升級了，請參考 README「當爬蟲被封鎖時怎麼辦」的進階選項
+第二版改成 Playwright 開真的 Chromium，但做法是「載入首頁後，在頁面的 JS 環境裡
+自己組一個 API 網址、呼叫 `fetch()`」——結果 403 是不見了（連線層級的偵測騙過去
+了），但蝦皮的 API 改成回傳一個看起來正常的 JSON、但內容其實是風控系統的錯誤物件
+（例如 `{"error": 90309999, ...}`，沒有真正的商品資料）。這代表蝦皮的防護不只看
+連線特徵，還會看「這個 API 請求本身合不合理」——真正的搜尋頁在呼叫這個 API 之前，
+會先執行一段前端的風控/裝置指紋 JS，把算出來的 token 或簽章塞進請求裡，我們自己
+另外組的 `fetch()` 沒有這個 token，所以被判定為異常請求、拒絕。
+
+現在這版（第三版）的做法：**不要自己組 API 網址呼叫，而是直接讓 Playwright 導航
+到真正的搜尋頁面**（`https://shopee.tw/search?keyword=...`），讓蝦皮自己的前端
+JS 完整跑一遍（包含它自己的風控/指紋邏輯），然後我們在旁邊「偷聽」瀏覽器自己發出
+的那個搜尋 API 請求的回應內容。這樣送出去的請求，從蝦皮的角度看，跟真人打開瀏覽器
+搜尋是完全一樣的行為，理論上能拿到真正的搜尋結果。
+
+**這樣做仍然不保證 100% 不被擋**，如果蝦皮的風控還會看更進一步的行為模式（例如
+滑鼠移動、頁面停留時間、多次搜尋之間的間隔規律性），現在這版還是可能被擋或拿到
+空結果。如果又開始持續失敗，請參考 README「當爬蟲被封鎖時怎麼辦」的進階選項
 （例如換用有代理伺服器/住宅 IP 的方案，或退回人工蒐集）。
 
 **重要風險提醒（請務必先讀 README.md 的「風險與限制」章節）**
@@ -72,13 +80,16 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 )
 
-SEARCH_ENDPOINT = "https://shopee.tw/api/v4/search/search_items"
+SEARCH_PAGE_URL = "https://shopee.tw/search"
+SEARCH_API_PATTERN = "/api/v4/search/search_items"
 SHOP_DETAIL_ENDPOINT = "https://shopee.tw/api/v4/shop/get_shop_detail"
 PAGE_SIZE = 60
 
-# 在頁面的 JS 環境裡執行 fetch，回傳 {status, body}。
-# 用瀏覽器自己的 fetch，是為了讓這個請求帶有真瀏覽器的連線/TLS 特徵，而不是
-# Python requests 那種容易被連線層級防護辨識出來的特徵。
+# (僅供 enrich_shop_names 使用) 在頁面的 JS 環境裡執行 fetch，回傳 {status, body}。
+# 商品搜尋已經改成用真正的頁面導航去攔截回應（見 fetch_search_page），
+# 但賣家名稱查詢沒有對應的「真實頁面」可以導航，暫時還是用這種直接 fetch 的方式，
+# 如果之後發現賣家名稱也一樣被擋（回傳風控錯誤物件），代表這個函式也需要比照
+# 搜尋改成導航到賣場頁面再攔截回應。
 _FETCH_JS = """
 async (url) => {
     try {
@@ -156,38 +167,51 @@ def new_page(playwright) -> tuple:
     return browser, page
 
 
-def fetch_search_page(page: Page, keyword: str, offset: int, retries: int = 3) -> dict | None:
-    params = {
-        "by": "relevancy",
-        "keyword": keyword,
-        "limit": PAGE_SIZE,
-        "newest": offset,
-        "order": "desc",
-        "page_type": "search",
-        "scenario": "PAGE_GLOBAL_SEARCH",
-        "version": 2,
-    }
-    url = f"{SEARCH_ENDPOINT}?{urlencode(params)}"
+def fetch_search_page(page: Page, keyword: str, page_index: int, retries: int = 3) -> dict | None:
+    """導航到蝦皮真正的搜尋頁面（而不是自己組 API 網址呼叫），同時攔截頁面自己
+    發出的搜尋 API 請求的回應。這樣送出去的請求會帶有蝦皮前端 JS 自己算好的
+    風控/裝置指紋 token，比起我們自己組網址呼叫 fetch 更接近真人操作。"""
+    search_url = f"{SEARCH_PAGE_URL}?{urlencode({'keyword': keyword, 'page': page_index})}"
 
     for attempt in range(1, retries + 1):
         try:
-            result = page.evaluate(_FETCH_JS, url)
+            with page.expect_response(
+                lambda r: SEARCH_API_PATTERN in r.url, timeout=20000
+            ) as response_info:
+                page.goto(search_url, wait_until="domcontentloaded", timeout=20000)
+            response = response_info.value
+            status = response.status
+            try:
+                body = response.json()
+            except Exception:
+                body = None
+        except PlaywrightTimeoutError:
+            log.warning(
+                "[%s] 導航到搜尋頁後，等不到搜尋 API 的回應（第 %d/%d 次嘗試），"
+                "可能是頁面被導去驗證頁、或載入太慢",
+                keyword,
+                attempt,
+                retries,
+            )
+            time.sleep(3 * attempt)
+            continue
         except Exception as e:
             log.warning(
-                "[%s] 呼叫 fetch 失敗（第 %d/%d 次嘗試）：%s", keyword, attempt, retries, e
+                "[%s] 導航或攔截搜尋 API 回應失敗（第 %d/%d 次嘗試）：%s",
+                keyword,
+                attempt,
+                retries,
+                e,
             )
             time.sleep(2 * attempt)
             continue
-
-        status = result.get("status")
-        body = result.get("body")
 
         if status == 200 and body is not None:
             return body
 
         if status in (403, 429):
             log.warning(
-                "[%s] 收到 %d，疑似被反爬蟲機制擋下（第 %d/%d 次嘗試），等待後重試",
+                "[%s] 搜尋 API 回應 %d，疑似被反爬蟲機制擋下（第 %d/%d 次嘗試），等待後重試",
                 keyword,
                 status,
                 attempt,
@@ -197,12 +221,11 @@ def fetch_search_page(page: Page, keyword: str, offset: int, retries: int = 3) -
             continue
 
         log.warning(
-            "[%s] 非預期的回應（狀態碼=%s，第 %d/%d 次嘗試）：%s",
+            "[%s] 非預期的回應（狀態碼=%s，第 %d/%d 次嘗試）",
             keyword,
             status,
             attempt,
             retries,
-            result.get("error", ""),
         )
         time.sleep(2 * attempt)
 
@@ -262,9 +285,8 @@ def scrape_keyword(
     now = datetime.now(TAIPEI_TZ)
     results: list[ProductSnapshot] = []
     for p in range(max_pages):
-        offset = p * PAGE_SIZE
-        log.info("抓取關鍵字 %r 第 %d 頁 (offset=%d)", keyword, p + 1, offset)
-        payload = fetch_search_page(page, keyword, offset)
+        log.info("抓取關鍵字 %r 第 %d 頁", keyword, p + 1)
+        payload = fetch_search_page(page, keyword, p)
         if payload is None:
             break
 
@@ -288,8 +310,8 @@ def scrape_keyword(
             break
         results.extend(items)
 
-        total_count = payload.get("total_count")
-        if total_count is not None and offset + PAGE_SIZE >= total_count:
+        if len(items) < PAGE_SIZE:
+            # 這一頁回來的數量沒有滿一頁，代表已經是最後一頁了
             break
 
         time.sleep(random.uniform(*delay_range))
