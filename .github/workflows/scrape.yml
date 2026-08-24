@@ -28,6 +28,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: 安裝 Playwright 用的 Chromium
+        # 爬蟲改用真的瀏覽器引擎（Playwright + headless Chromium）呼叫蝦皮的搜尋 API，
+        # 是為了讓請求帶有真瀏覽器的連線/TLS 特徵，避免被連線層級的反爬蟲機制直接擋下。
+        # 這一步會下載瀏覽器執行檔，通常要 1-2 分鐘，是正常的，不是卡住。
+        run: playwright install --with-deps chromium
+
       - name: 執行蝦皮搜尋爬蟲
         id: scrape
         # 就算爬蟲被擋（例如回傳非 0 exit code），也讓 workflow 繼續往下跑，
