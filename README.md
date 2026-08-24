@@ -12,7 +12,8 @@
 | 季報/年報彙整（`scripts/build_reports.py`） | 可正常運作，資料來源改為人工匯入 |
 | **人工資料蒐集 Excel 範本** | `manual_data/PYP蝦皮市場手動蒐集表.xlsx`，**目前主要的資料輸入方式** |
 | 規格別市場需求推估（評價抽樣法） | 可正常運作，需要人工在 Excel 裡統計評價則數 |
-| 自動化爬蟲（`scraper/shopee_scraper.py`） | **已暫停**：被蝦皮風控機制擋下，研判是雲端機房 IP 被整批封鎖，程式碼保留但排程關閉 |
+| 自動化爬蟲（`scraper/shopee_scraper.py`）——在 GitHub Actions 上 | **已暫停**：被蝦皮風控機制擋下，研判是雲端機房 IP 被整批封鎖，程式碼保留但排程關閉 |
+| 自動化爬蟲——改在本機/家用網路執行 | **測試中**：詳見 [`本機排程設定指南.md`](./本機排程設定指南.md)，測試家用網路 IP 是否能繞過封鎖 |
 
 ## 這個系統在做什麼
 
@@ -145,7 +146,10 @@ pyp-shopee-tracker/
 ├── manual_data/
 │   └── PYP蝦皮市場手動蒐集表.xlsx    # 人工資料蒐集範本，主要的資料輸入方式
 ├── scraper/
-│   └── shopee_scraper.py            # 自動化爬蟲（目前暫停排程，程式碼保留）
+│   └── shopee_scraper.py            # 自動化爬蟲（GitHub Actions 排程已暫停，程式碼保留）
+├── local_run/
+│   ├── run_scraper.bat              # 在本機/家用網路手動或排程執行爬蟲用的批次檔（Windows）
+│   └── logs/                        # 本機執行紀錄（latest_run.log / history.log）
 ├── scripts/
 │   ├── import_manual_products.py    # 把「商品資料」工作表匯入成 data/raw/<日期>.jsonl
 │   ├── import_variant_estimates.py  # 把「規格評價統計」工作表匯入成 docs/data/variant_estimates.json
@@ -158,6 +162,7 @@ pyp-shopee-tracker/
 │   └── data/                        # build_reports.py / import_variant_estimates.py 產生的 JSON，前端讀這裡
 ├── .github/workflows/
 │   └── scrape.yml                   # 自動化爬蟲排程（目前已關閉，僅供手動測試）
+├── 本機排程設定指南.md               # 在自己電腦/家用網路測試並設定自動排程的步驟說明
 └── requirements.txt
 ```
 
@@ -194,7 +199,7 @@ python -m http.server 8000 --directory docs
 如果之後想重新嘗試，可以參考的方向（依成本/風險由低到高）：
 
 1. **加代理伺服器 / 住宅 IP**：在 `scraper/shopee_scraper.py` 的 `new_page()` 裡 `browser.launch()` 加上 `proxy` 參數，改用住宅 IP 代理服務連線，而不是直接用 GitHub Actions 的原生 IP。這需要額外訂閱代理服務。
-2. **改用自架/家用網路執行**：把排程改成在自己的電腦或伺服器上用 cron 執行，而不是 GitHub Actions（`scraper/shopee_scraper.py` 和 `scripts/build_reports.py` 都是可以獨立在任何有 Python + Playwright 的機器上執行的腳本），家用 IP 的信譽通常比雲端機房好。
+2. **改用自架/家用網路執行**：把排程改成在自己的電腦或伺服器上執行，而不是 GitHub Actions（`scraper/shopee_scraper.py` 和 `scripts/build_reports.py` 都是可以獨立在任何有 Python + Playwright 的機器上執行的腳本），家用 IP 的信譽通常比雲端機房好。**這條路目前正在測試**，Windows 使用者可以照 [`本機排程設定指南.md`](./本機排程設定指南.md) 的步驟設定（含一次性環境安裝、`local_run/run_scraper.bat` 手動測試腳本、Windows 工作排程器排程設定），先手動測試一次確認家用網路真的沒被擋，再考慮設定自動排程。
 3. **恢復排程**：確認上述方式有效後，把 `.github/workflows/scrape.yml` 裡註解掉的 `schedule:` 區塊取消註解即可恢復每日排程，並到 repo 的 **Settings → Actions → General** 把 Workflow permissions 設成 **Read and write permissions**。
 
 資料格式本身不綁定抓取方式——`scraper/shopee_scraper.py` 輸出的 `data/raw/<日期>.jsonl` 格式，跟 `scripts/import_manual_products.py` 從 Excel 匯入產生的格式完全相容，`scripts/build_reports.py` 不需要知道資料是自動抓的還是人工填的，兩種方式可以交替使用、甚至同時併用（例如自動化偶爾能跑通的那幾天照樣會被納入計算）。
