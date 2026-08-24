@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PYP 蝦皮市場銷量儀表板</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6; /* blue */
+    --series-2:       #eb6834; /* orange */
+    --series-3:       #1baf7a; /* aqua */
+    --status-good:    #0ca30c;
+    --status-warn:    #fab219;
+    --status-crit:    #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-2:       #d95926;
+      --series-3:       #199e70;
+      --status-good:    #0ca30c;
+      --status-warn:    #fab219;
+      --status-crit:    #e66767;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --series-2:       #d95926;
+    --series-3:       #199e70;
+    --status-good:    #0ca30c;
+    --status-warn:    #fab219;
+    --status-crit:    #e66767;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  }
+  body { padding: 24px 16px 64px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  header h1 { font-size: 22px; margin: 0 0 4px; }
+  header p.sub { color: var(--text-secondary); margin: 0 0 20px; font-size: 14px; }
+
+  .banner {
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    display: none;
+  }
+  .banner.show { display: block; }
+  .banner.warn { border-left: 3px solid var(--status-warn); }
+  .banner strong { color: var(--text-primary); }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .stat-tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .stat-tile .label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .stat-tile .value {
+    font-size: 26px;
+    font-weight: 600;
+    font-variant-numeric: proportional-nums;
+  }
+  .stat-tile .value small { font-size: 13px; color: var(--text-secondary); font-weight: 400; }
+
+  section {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+  }
+  section h2 {
+    font-size: 15px;
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  section h2 .controls { display: flex; gap: 8px; align-items: center; font-weight: 400; }
+
+  select, button {
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--page-plane);
+    color: var(--text-primary);
+  }
+  button { cursor: pointer; }
+  button.active { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+
+  .chart-wrap { overflow-x: auto; }
+  svg text { fill: var(--text-secondary); font-size: 11px; font-family: inherit; }
+  .bar-value { fill: var(--text-primary); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .grid-line { stroke: var(--gridline); stroke-width: 1; }
+  .baseline { stroke: var(--baseline); stroke-width: 1; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.wide-scroll-wrap { display: block; overflow-x: auto; }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--gridline);
+    white-space: nowrap;
+  }
+  th { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.name-cell { white-space: normal; max-width: 320px; }
+  tr:last-child td { border-bottom: none; }
+  a { color: var(--series-1); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    margin-left: 6px;
+  }
+  .badge.partial { color: var(--status-warn); border-color: var(--status-warn); }
+
+  .empty-state {
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 24px 0;
+    text-align: center;
+  }
+
+  footer { color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 32px; }
+  footer a { color: var(--text-muted); text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="viz-root wrap">
+
+  <header>
+    <h1>PYP 蝦皮市場銷量儀表板</h1>
+    <p class="sub">監控蝦皮台灣站上「PYP」品牌相關商品的市場銷量與商品動態。資料每日由 GitHub Actions 自動抓取更新。</p>
+  </header>
+
+  <div id="banner-no-data" class="banner warn">
+    <strong>尚無資料。</strong>
+    這個系統剛設置好，還沒有任何快照資料。請確認 GitHub Actions 的排程工作流程已經成功執行過至少一次
+    （可以到 repo 的 Actions 頁籤手動點「Run workflow」立即跑一次）。
+  </div>
+
+  <div id="banner-stale" class="banner warn">
+    <strong>資料可能已過期。</strong>
+    <span id="stale-detail"></span>
+    這通常代表爬蟲最近被蝦皮擋下了，請檢查 GitHub Actions 的執行紀錄。
+  </div>
+
+  <div id="banner-partial" class="banner">
+    <strong>提醒：</strong>
+    目前顯示的部分銷量估計值標示了 <span class="badge partial">偏低估計</span>，代表系統在該期間開始前還沒開始追蹤這項商品，
+    估計值可能低於實際銷量。詳見 README 的計算方式說明。
+  </div>
+
+  <div id="app" style="display:none">
+
+    <div class="stat-grid">
+      <div class="stat-tile"><div class="label">目前追蹤商品數</div><div class="value" id="stat-items">–</div></div>
+      <div class="stat-tile"><div class="label">目前追蹤賣家數</div><div class="value" id="stat-shops">–</div></div>
+      <div class="stat-tile"><div class="label">已累積追蹤天數</div><div class="value" id="stat-days">–</div></div>
+      <div class="stat-tile"><div class="label">最後更新</div><div class="value" id="stat-updated" style="font-size:16px">–</div></div>
+    </div>
+
+    <section>
+      <h2>
+        <span>各期預估銷量趨勢</span>
+        <span class="controls">
+          <button id="btn-quarterly" class="active">季</button>
+          <button id="btn-annual">年</button>
+        </span>
+      </h2>
+      <div class="chart-wrap"><svg id="trend-chart" width="100%" height="220"></svg></div>
+      <div id="trend-empty" class="empty-state" style="display:none">目前資料還不足以畫出趨勢圖，至少需要走過一個完整的統計期間。</div>
+    </section>
+
+    <section>
+      <h2>
+        <span>商品排行</span>
+        <span class="controls">
+          <label style="font-size:13px;color:var(--text-secondary)">期間：</label>
+          <select id="period-select"></select>
+        </span>
+      </h2>
+      <div class="wide-scroll-wrap">
+        <table id="items-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>商品名稱</th>
+              <th>賣家</th>
+              <th class="num">價格</th>
+              <th class="num">預估銷量</th>
+              <th>關鍵字</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="items-empty" class="empty-state" style="display:none">此期間沒有資料。</div>
+    </section>
+
+    <section>
+      <h2><span>賣家排行</span></h2>
+      <div class="wide-scroll-wrap">
+        <table id="shops-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>賣家</th>
+              <th class="num">商品數</th>
+              <th class="num">預估銷量</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="shops-empty" class="empty-state" style="display:none">此期間沒有資料。</div>
+    </section>
+
+    <section>
+      <h2><span>目前追蹤中的商品（最新一次快照）</span></h2>
+      <div class="wide-scroll-wrap">
+        <table id="latest-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>商品名稱</th>
+              <th>賣家</th>
+              <th class="num">價格</th>
+              <th class="num">累計已售</th>
+              <th>最後看到日期</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <footer>
+    資料來源：蝦皮台灣站公開搜尋結果（非官方 API，僅供內部市場觀察參考，數字為估計值）。
+    <br />由 GitHub Actions 每日自動更新。
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const fmtInt = (n) => (n === null || n === undefined) ? "–" : n.toLocaleString("zh-TW");
+  const fmtPrice = (n) => (n === null || n === undefined) ? "–" : "NT$" + n.toLocaleString("zh-TW", {maximumFractionDigits: 0});
+
+  async function loadJSON(path) {
+    try {
+      const res = await fetch(path, { cache: "no-store" });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function daysSinceDateString(dateStr) {
+    // dateStr is a plain "YYYY-MM-DD" (no time/timezone) date, e.g. meta.last_date
+    const then = new Date(dateStr + "T00:00:00+08:00");
+    const now = new Date();
+    return Math.floor((now - then) / (1000 * 60 * 60 * 24));
+  }
+
+  function renderTrendChart(periods) {
+    const svg = document.getElementById("trend-chart");
+    const emptyEl = document.getElementById("trend-empty");
+    svg.innerHTML = "";
+
+    if (!periods || periods.length === 0) {
+      emptyEl.style.display = "block";
+      svg.style.display = "none";
+      return;
+    }
+    emptyEl.style.display = "none";
+    svg.style.display = "block";
+
+    const W = Math.max(480, periods.length * 90);
+    const H = 220;
+    const padL = 46, padR = 16, padT = 16, padB = 32;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("width", W);
+
+    const maxVal = Math.max(1, ...periods.map(p => p.total_sold_estimate || 0));
+    const innerH = H - padT - padB;
+    const innerW = W - padL - padR;
+    const barSlot = innerW / periods.length;
+    const barW = Math.min(48, barSlot * 0.5);
+
+    const ns = "http://www.w3.org/2000/svg";
+    const g = document.createElementNS(ns, "g");
+
+    // gridlines (4 horizontal steps)
+    const steps = 4;
+    for (let i = 0; i <= steps; i++) {
+      const y = padT + innerH - (innerH * i / steps);
+      const line = document.createElementNS(ns, "line");
+      line.setAttribute("x1", padL); line.setAttribute("x2", W - padR);
+      line.setAttribute("y1", y); line.setAttribute("y2", y);
+      line.setAttribute("class", i === 0 ? "baseline" : "grid-line");
+      g.appendChild(line);
+
+      const label = document.createElementNS(ns, "text");
+      label.setAttribute("x", padL - 8);
+      label.setAttribute("y", y + 4);
+      label.setAttribute("text-anchor", "end");
+      label.textContent = Math.round(maxVal * i / steps).toLocaleString("zh-TW");
+      g.appendChild(label);
+    }
+
+    periods.forEach((p, i) => {
+      const val = p.total_sold_estimate || 0;
+      const barH = maxVal > 0 ? (val / maxVal) * innerH : 0;
+      const x = padL + i * barSlot + (barSlot - barW) / 2;
+      const y = padT + innerH - barH;
+
+      const rect = document.createElementNS(ns, "rect");
+      rect.setAttribute("x", x);
+      rect.setAttribute("y", y);
+      rect.setAttribute("width", barW);
+      rect.setAttribute("height", Math.max(barH, 1));
+      rect.setAttribute("rx", 4);
+      rect.setAttribute("fill", "var(--series-1)");
+      const title = document.createElementNS(ns, "title");
+      title.textContent = `${p.period}：預估銷量 ${val.toLocaleString("zh-TW")} 件${p.has_partial_data ? "（含偏低估計）" : ""}`;
+      rect.appendChild(title);
+      g.appendChild(rect);
+
+      if (p.has_partial_data) {
+        const mark = document.createElementNS(ns, "text");
+        mark.setAttribute("x", x + barW / 2);
+        mark.setAttribute("y", y - 6);
+        mark.setAttribute("text-anchor", "middle");
+        mark.setAttribute("fill", "var(--status-warn)");
+        mark.textContent = "≈";
+        g.appendChild(mark);
+      }
+
+      const valLabel = document.createElementNS(ns, "text");
+      valLabel.setAttribute("class", "bar-value");
+      valLabel.setAttribute("x", x + barW / 2);
+      valLabel.setAttribute("y", y - (p.has_partial_data ? 20 : 6));
+      valLabel.setAttribute("text-anchor", "middle");
+      valLabel.textContent = val.toLocaleString("zh-TW");
+      g.appendChild(valLabel);
+
+      const xLabel = document.createElementNS(ns, "text");
+      xLabel.setAttribute("x", x + barW / 2);
+      xLabel.setAttribute("y", H - padB + 18);
+      xLabel.setAttribute("text-anchor", "middle");
+      xLabel.textContent = p.period;
+      g.appendChild(xLabel);
+    });
+
+    svg.appendChild(g);
+  }
+
+  function shopLabel(row) {
+    const name = row.shop_name;
+    const url = row.shop_url || (row.shopid ? `https://shopee.tw/shop/${row.shopid}` : "#");
+    const text = name ? name : (row.shopid ? `賣家 #${row.shopid}` : "未知賣家");
+    return `<a href="${url}" target="_blank" rel="noopener">${escapeHtml(text)}</a>`;
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function renderItemsTable(items) {
+    const tbody = document.querySelector("#items-table tbody");
+    const emptyEl = document.getElementById("items-empty");
+    tbody.innerHTML = "";
+    if (!items || items.length === 0) {
+      emptyEl.style.display = "block";
+      return;
+    }
+    emptyEl.style.display = "none";
+    items.slice(0, 50).forEach((row, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td class="name-cell"><a href="${row.url}" target="_blank" rel="noopener">${escapeHtml(row.item_name)}</a></td>
+        <td>${shopLabel(row)}</td>
+        <td class="num">${fmtPrice(row.price_twd)}</td>
+        <td class="num">${fmtInt(row.sold_estimate)}${row.partial ? '<span class="badge partial">偏低估計</span>' : ""}</td>
+        <td>${escapeHtml(row.keyword)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderShopsTable(shops) {
+    const tbody = document.querySelector("#shops-table tbody");
+    const emptyEl = document.getElementById("shops-empty");
+    tbody.innerHTML = "";
+    if (!shops || shops.length === 0) {
+      emptyEl.style.display = "block";
+      return;
+    }
+    emptyEl.style.display = "none";
+    shops.slice(0, 30).forEach((row, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td>${shopLabel(row)}</td>
+        <td class="num">${fmtInt(row.item_count)}</td>
+        <td class="num">${fmtInt(row.sold_estimate)}${row.partial ? '<span class="badge partial">偏低估計</span>' : ""}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderLatestTable(latest) {
+    const tbody = document.querySelector("#latest-table tbody");
+    tbody.innerHTML = "";
+    (latest || []).slice(0, 50).forEach((row, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td class="name-cell"><a href="${row.url}" target="_blank" rel="noopener">${escapeHtml(row.item_name)}</a></td>
+        <td>${shopLabel(row)}</td>
+        <td class="num">${fmtPrice(row.price_twd)}</td>
+        <td class="num">${fmtInt(row.historical_sold)}</td>
+        <td>${escapeHtml(row.date)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function main() {
+    const [meta, latest, quarterly, annual] = await Promise.all([
+      loadJSON("data/meta.json"),
+      loadJSON("data/latest.json"),
+      loadJSON("data/quarterly.json"),
+      loadJSON("data/annual.json"),
+    ]);
+
+    if (!meta || meta.status === "no_data") {
+      document.getElementById("banner-no-data").classList.add("show");
+      return;
+    }
+
+    document.getElementById("app").style.display = "block";
+    document.getElementById("stat-items").textContent = fmtInt(meta.total_items_latest);
+    document.getElementById("stat-days").textContent = fmtInt(meta.days_tracked);
+    document.getElementById("stat-updated").textContent = new Date(meta.last_updated).toLocaleString("zh-TW");
+
+    const uniqueShops = new Set((latest || []).map(r => r.shopid));
+    document.getElementById("stat-shops").textContent = fmtInt(uniqueShops.size);
+
+    const staleDays = daysSinceDateString(meta.last_date);
+    if (staleDays >= 2) {
+      document.getElementById("stale-detail").textContent =
+        `最新資料距今已經 ${staleDays} 天沒有更新（最後日期：${meta.last_date}）。`;
+      document.getElementById("banner-stale").classList.add("show");
+    }
+
+    const anyPartial = (quarterly || []).some(p => p.has_partial_data) || (annual || []).some(p => p.has_partial_data);
+    if (anyPartial) {
+      document.getElementById("banner-partial").classList.add("show");
+    }
+
+    let mode = "quarterly";
+    const dataByMode = { quarterly: quarterly || [], annual: annual || [] };
+
+    const periodSelect = document.getElementById("period-select");
+
+    function populatePeriodSelect() {
+      const periods = dataByMode[mode];
+      periodSelect.innerHTML = "";
+      periods.slice().reverse().forEach((p) => {
+        const opt = document.createElement("option");
+        opt.value = p.period;
+        opt.textContent = p.period;
+        periodSelect.appendChild(opt);
+      });
+    }
+
+    function renderForSelectedPeriod() {
+      const periods = dataByMode[mode];
+      const selected = periods.find(p => p.period === periodSelect.value) || periods[periods.length - 1];
+      if (!selected) {
+        renderItemsTable([]);
+        renderShopsTable([]);
+        return;
+      }
+      renderItemsTable(selected.items);
+      renderShopsTable(selected.shops);
+    }
+
+    function refreshAll() {
+      renderTrendChart(dataByMode[mode]);
+      populatePeriodSelect();
+      renderForSelectedPeriod();
+    }
+
+    document.getElementById("btn-quarterly").addEventListener("click", () => {
+      mode = "quarterly";
+      document.getElementById("btn-quarterly").classList.add("active");
+      document.getElementById("btn-annual").classList.remove("active");
+      refreshAll();
+    });
+    document.getElementById("btn-annual").addEventListener("click", () => {
+      mode = "annual";
+      document.getElementById("btn-annual").classList.add("active");
+      document.getElementById("btn-quarterly").classList.remove("active");
+      refreshAll();
+    });
+    periodSelect.addEventListener("change", renderForSelectedPeriod);
+
+    refreshAll();
+    renderLatestTable(latest);
+  }
+
+  main();
+})();
+</script>
+</body>
+</html>
