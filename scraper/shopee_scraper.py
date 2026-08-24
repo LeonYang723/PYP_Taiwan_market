@@ -271,6 +271,20 @@ def scrape_keyword(
         items = parse_items(payload, keyword, now)
         if not items:
             log.info("[%s] 第 %d 頁沒有更多商品，停止翻頁", keyword, p + 1)
+            if p == 0:
+                # 除錯用：第一頁就是空的，把回應內容的重點資訊印出來，方便判斷
+                # 到底是「真的沒有符合的商品」、「回應格式跟預期不一樣」、還是
+                # 「被導去了一個看起來像 JSON、內容其實是驗證/攔截頁」。
+                raw_snippet = json.dumps(payload, ensure_ascii=False)[:800]
+                log.info(
+                    "[%s] 除錯資訊：payload 頂層欄位=%s，total_count=%s，"
+                    "error 欄位=%s，內容前 800 字=%s",
+                    keyword,
+                    list(payload.keys()),
+                    payload.get("total_count"),
+                    payload.get("error") or payload.get("error_msg"),
+                    raw_snippet,
+                )
             break
         results.extend(items)
 
