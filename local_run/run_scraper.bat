@@ -3,6 +3,11 @@ setlocal
 rem 這支批次檔要放在 repo 底下的 local_run\ 資料夾裡，會自動切回 repo 根目錄執行。
 cd /d "%~dp0.."
 
+rem 強制 Python 和主控台都用 UTF-8，避免這台電腦的系統編碼（例如 cp1252）
+rem 沒辦法處理中文，導致印出亂碼或程式直接當掉。
+chcp 65001 >nul
+set PYTHONUTF8=1
+
 if not exist "local_run\logs" mkdir "local_run\logs"
 set LATEST=local_run\logs\latest_run.log
 set HISTORY=local_run\logs\history.log
