@@ -6,22 +6,36 @@
 
 用途
 ----
-呼叫蝦皮台灣站（shopee.tw）**未公開、非官方**的內部搜尋 API（前端網頁本身也是呼叫這個
-API 來顯示搜尋結果），依 config/keywords.yaml 設定的關鍵字清單，抓取蝦皮全站上符合
-關鍵字的商品資料（商品名稱、價格、已售出數量、賣家 shopid 等），存成每日快照，
-供 scripts/build_reports.py 進一步彙整成季報/年報。
+用真的瀏覽器引擎（Playwright + headless Chromium）打開蝦皮台灣站，在瀏覽器的 JS
+環境裡呼叫蝦皮前端網頁自己在用的**未公開、非官方**內部搜尋 API，依
+config/keywords.yaml 設定的關鍵字清單，抓取蝦皮全站上符合關鍵字的商品資料
+（商品名稱、價格、已售出數量、賣家 shopid 等），存成每日快照，供
+scripts/build_reports.py 進一步彙整成季報/年報。
+
+**為什麼用真的瀏覽器，而不是直接發 HTTP 請求？**
+------------------------------------------------
+一開始這支腳本是用 Python `requests` 直接打 API，結果蝦皮在連線層級（TLS
+指紋）就直接判斷「這不是真的瀏覽器」，回傳 403，就算把 User-Agent、Accept-Language
+等 headers 改得再像瀏覽器也沒用——因為 `requests` 底層的 TLS handshake 特徵，
+跟真的 Chrome/Firefox 就是不一樣，這是比 headers 更底層的偵測方式。
+Playwright 開的是真的 Chromium，連線特徵就是真瀏覽器的特徵，所以改用它在頁面
+的 JS 環境裡呼叫 `fetch()`，效果等同於「使用者真的打開瀏覽器、瀏覽器自己呼叫了
+這個 API」，比較不容易被這種連線層級的防護擋下來。
+
+**這樣做仍然不保證 100% 不被擋**，蝦皮還是可能用其他方式偵測（例如偵測
+`navigator.webdriver`、瀏覽器指紋、請求頻率異常等），腳本裡已經做了幾個常見的
+基礎規避（隱藏 `navigator.webdriver`、隨機延遲），但如果之後又開始持續失敗，
+代表蝦皮的防護又升級了，請參考 README「當爬蟲被封鎖時怎麼辦」的進階選項
+（例如換用有代理伺服器/住宅 IP 的方案，或退回人工蒐集）。
 
 **重要風險提醒（請務必先讀 README.md 的「風險與限制」章節）**
 ----------------------------------------------------------------
 1. 這不是蝦皮官方提供的 API，是逆向工程網頁前端行為得到的內部端點。蝦皮隨時可能改變
-   回傳格式、加上更嚴格的驗證（例如需要特定 cookie / token / 圖形驗證碼），導致這支
-   腳本失效，需要更新。
+   回傳格式、加上更嚴格的驗證，導致這支腳本失效，需要更新。
 2. 這種抓取方式很可能違反蝦皮的服務條款。是否要以此方式做市場監控，是一個你們公司
    要自行評估的商業/法遵決定，不是單純的技術問題。
-3. GitHub Actions 執行環境的出口 IP 屬於雲端機房（Azure/GitHub），比一般家用/公司網路
-   更容易被平台的反爬蟲機制標記或封鎖。腳本內建了隨機延遲、正常瀏覽器 headers、
-   逐步 backoff 重試，降低被擋機率，但無法保證長期穩定可用。若持續被擋，請參考
-   README 的「當爬蟲被封鎖時怎麼辦」。
+3. 因為改用真的瀏覽器引擎，這支腳本比純 HTTP 請求版本慢很多、也吃更多資源
+   （GitHub Actions 執行時間會從原本的 1-3 分鐘拉長到 5-10 分鐘左右屬正常）。
 
 輸出
 ----
@@ -40,10 +54,12 @@ import time
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
+from urllib.parse import urlencode
 
-import requests
 import yaml
+from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = REPO_ROOT / "config" / "keywords.yaml"
@@ -51,21 +67,33 @@ RAW_DATA_DIR = REPO_ROOT / "data" / "raw"
 
 TAIPEI_TZ = timezone(timedelta(hours=8))
 
-# 模擬一般瀏覽器的 headers，降低被當成機器人流量的機率。
-# User-Agent 建議定期更新成當下常見的瀏覽器版本。
-BASE_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
-    ),
-    "Accept": "application/json",
-    "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
-    "Referer": "https://shopee.tw/",
-    "x-api-source": "pc",
-}
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+)
 
 SEARCH_ENDPOINT = "https://shopee.tw/api/v4/search/search_items"
+SHOP_DETAIL_ENDPOINT = "https://shopee.tw/api/v4/shop/get_shop_detail"
 PAGE_SIZE = 60
+
+# 在頁面的 JS 環境裡執行 fetch，回傳 {status, body}。
+# 用瀏覽器自己的 fetch，是為了讓這個請求帶有真瀏覽器的連線/TLS 特徵，而不是
+# Python requests 那種容易被連線層級防護辨識出來的特徵。
+_FETCH_JS = """
+async (url) => {
+    try {
+        const res = await fetch(url, {
+            headers: { "Accept": "application/json" },
+            credentials: "include",
+        });
+        let body = null;
+        try { body = await res.json(); } catch (e) { body = null; }
+        return { status: res.status, body };
+    } catch (e) {
+        return { status: 0, body: null, error: String(e) };
+    }
+}
+"""
 
 logging.basicConfig(
     level=logging.INFO,
@@ -99,20 +127,36 @@ def load_config() -> dict:
     return cfg
 
 
-def new_session() -> requests.Session:
-    """建立一個 session，先訪問首頁取得必要的 cookie，再拿去打搜尋 API。"""
-    session = requests.Session()
-    session.headers.update(BASE_HEADERS)
+def new_page(playwright) -> tuple:
+    """啟動 headless Chromium，開一個分頁，先訪問首頁讓蝦皮的前端 JS 有機會設好
+    必要的 cookie，回傳 (browser, page) 讓呼叫端負責之後關閉 browser。"""
+    browser = playwright.chromium.launch(
+        headless=True,
+        args=["--disable-blink-features=AutomationControlled"],
+    )
+    context = browser.new_context(
+        user_agent=USER_AGENT,
+        locale="zh-TW",
+        viewport={"width": 1366, "height": 768},
+    )
+    # 隱藏最基本的「這是自動化工具」訊號，降低被簡單指紋偵測抓到的機率。
+    context.add_init_script(
+        "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
+    )
+    page = context.new_page()
     try:
-        session.get("https://shopee.tw/", timeout=15)
-    except requests.RequestException as e:
-        log.warning("預先訪問 shopee.tw 首頁失敗（可能不影響後續搜尋）：%s", e)
-    return session
+        page.goto("https://shopee.tw/", wait_until="domcontentloaded", timeout=20000)
+        page.wait_for_timeout(1500)
+    except PlaywrightTimeoutError:
+        log.warning("預先訪問 shopee.tw 首頁逾時（可能不影響後續搜尋）")
+    except Exception as e:
+        # 不論是連線失敗、被導去驗證頁、還是其他問題，都不要讓整支腳本直接崩潰——
+        # 讓它繼續往下嘗試呼叫搜尋 API，之後的重試/錯誤處理邏輯自然會處理失敗的情況。
+        log.warning("預先訪問 shopee.tw 首頁時發生例外（可能不影響後續搜尋）：%s", e)
+    return browser, page
 
 
-def fetch_search_page(
-    session: requests.Session, keyword: str, offset: int, retries: int = 3
-) -> dict | None:
+def fetch_search_page(page: Page, keyword: str, offset: int, retries: int = 3) -> dict | None:
     params = {
         "by": "relevancy",
         "keyword": keyword,
@@ -123,35 +167,43 @@ def fetch_search_page(
         "scenario": "PAGE_GLOBAL_SEARCH",
         "version": 2,
     }
+    url = f"{SEARCH_ENDPOINT}?{urlencode(params)}"
+
     for attempt in range(1, retries + 1):
         try:
-            resp = session.get(SEARCH_ENDPOINT, params=params, timeout=20)
-        except requests.RequestException as e:
+            result = page.evaluate(_FETCH_JS, url)
+        except Exception as e:
             log.warning(
-                "[%s] 請求失敗（第 %d/%d 次嘗試）：%s", keyword, attempt, retries, e
+                "[%s] 呼叫 fetch 失敗（第 %d/%d 次嘗試）：%s", keyword, attempt, retries, e
             )
             time.sleep(2 * attempt)
             continue
 
-        if resp.status_code == 200:
-            try:
-                return resp.json()
-            except ValueError:
-                log.warning("[%s] 回傳非 JSON，可能觸發了驗證頁面/封鎖頁", keyword)
-                return None
+        status = result.get("status")
+        body = result.get("body")
 
-        if resp.status_code in (403, 429):
+        if status == 200 and body is not None:
+            return body
+
+        if status in (403, 429):
             log.warning(
                 "[%s] 收到 %d，疑似被反爬蟲機制擋下（第 %d/%d 次嘗試），等待後重試",
                 keyword,
-                resp.status_code,
+                status,
                 attempt,
                 retries,
             )
             time.sleep(5 * attempt)
             continue
 
-        log.warning("[%s] 非預期的 HTTP 狀態碼：%d", keyword, resp.status_code)
+        log.warning(
+            "[%s] 非預期的回應（狀態碼=%s，第 %d/%d 次嘗試）：%s",
+            keyword,
+            status,
+            attempt,
+            retries,
+            result.get("error", ""),
+        )
         time.sleep(2 * attempt)
 
     log.error("[%s] 已重試 %d 次仍失敗，放棄此頁", keyword, retries)
@@ -205,20 +257,20 @@ def parse_items(payload: dict, keyword: str, now: datetime) -> list[ProductSnaps
 
 
 def scrape_keyword(
-    session: requests.Session, keyword: str, max_pages: int, delay_range: tuple[int, int]
+    page: Page, keyword: str, max_pages: int, delay_range: tuple[int, int]
 ) -> list[ProductSnapshot]:
     now = datetime.now(TAIPEI_TZ)
     results: list[ProductSnapshot] = []
-    for page in range(max_pages):
-        offset = page * PAGE_SIZE
-        log.info("抓取關鍵字 %r 第 %d 頁 (offset=%d)", keyword, page + 1, offset)
-        payload = fetch_search_page(session, keyword, offset)
+    for p in range(max_pages):
+        offset = p * PAGE_SIZE
+        log.info("抓取關鍵字 %r 第 %d 頁 (offset=%d)", keyword, p + 1, offset)
+        payload = fetch_search_page(page, keyword, offset)
         if payload is None:
             break
 
         items = parse_items(payload, keyword, now)
         if not items:
-            log.info("[%s] 第 %d 頁沒有更多商品，停止翻頁", keyword, page + 1)
+            log.info("[%s] 第 %d 頁沒有更多商品，停止翻頁", keyword, p + 1)
             break
         results.extend(items)
 
@@ -231,7 +283,7 @@ def scrape_keyword(
 
 
 def enrich_shop_names(
-    session: requests.Session, snapshots: list[ProductSnapshot], delay_range: tuple[int, int]
+    page: Page, snapshots: list[ProductSnapshot], delay_range: tuple[int, int]
 ) -> None:
     """(選用) 針對抓到的每個不重複 shopid 額外呼叫一次蝦皮 API 取得賣家名稱。
 
@@ -246,18 +298,15 @@ def enrich_shop_names(
     name_cache: dict[int, str | None] = {}
 
     for shopid in unique_shopids:
+        url = f"{SHOP_DETAIL_ENDPOINT}?{urlencode({'shopid': shopid})}"
         try:
-            resp = session.get(
-                "https://shopee.tw/api/v4/shop/get_shop_detail",
-                params={"shopid": shopid},
-                timeout=15,
-            )
-            if resp.status_code == 200:
-                data = resp.json().get("data", {})
+            result = page.evaluate(_FETCH_JS, url)
+            if result.get("status") == 200 and result.get("body"):
+                data = result["body"].get("data", {})
                 name_cache[shopid] = data.get("name") or data.get("account", {}).get("username")
             else:
                 name_cache[shopid] = None
-        except (requests.RequestException, ValueError):
+        except Exception:
             name_cache[shopid] = None
         time.sleep(random.uniform(*delay_range))
 
@@ -265,7 +314,7 @@ def enrich_shop_names(
         s.shop_name = name_cache.get(s.shopid)
 
 
-def dedupe_by_itemid(snapshots: Iterable[ProductSnapshot]) -> list[ProductSnapshot]:
+def dedupe_by_itemid(snapshots: Iterable[ProductSnapshot]) -> list[dict]:
     """同一商品可能同時符合多個關鍵字；輸出時保留每個 itemid 第一次出現的關鍵字，
     但把符合的關鍵字都記錄下來（用逗號合併），方便後續分析。"""
     by_id: dict[int, ProductSnapshot] = {}
@@ -295,35 +344,39 @@ def main() -> int:
         log.error("config/keywords.yaml 沒有設定任何關鍵字，中止。")
         return 1
 
-    session = new_session()
     all_snapshots: list[ProductSnapshot] = []
     any_success = False
 
-    for kw in keywords:
+    with sync_playwright() as playwright:
+        browser, page = new_page(playwright)
         try:
-            snaps = scrape_keyword(session, kw, max_pages, delay_range)
-        except Exception:
-            log.exception("關鍵字 %r 抓取過程發生未預期例外，跳過", kw)
-            continue
-        if snaps:
-            any_success = True
-        log.info("關鍵字 %r 抓到 %d 筆商品", kw, len(snaps))
-        all_snapshots.extend(snaps)
-        time.sleep(random.uniform(*delay_range))
+            for kw in keywords:
+                try:
+                    snaps = scrape_keyword(page, kw, max_pages, delay_range)
+                except Exception:
+                    log.exception("關鍵字 %r 抓取過程發生未預期例外，跳過", kw)
+                    continue
+                if snaps:
+                    any_success = True
+                log.info("關鍵字 %r 抓到 %d 筆商品", kw, len(snaps))
+                all_snapshots.extend(snaps)
+                time.sleep(random.uniform(*delay_range))
 
-    if not any_success:
-        log.error(
-            "所有關鍵字都沒有抓到任何資料，很可能已被蝦皮封鎖/擋下。"
-            "不會寫入今天的快照檔，避免用空資料覆蓋掉先前的紀錄。"
-            "請參考 README「當爬蟲被封鎖時怎麼辦」。"
-        )
-        return 2
+            if not any_success:
+                log.error(
+                    "所有關鍵字都沒有抓到任何資料，很可能已被蝦皮封鎖/擋下。"
+                    "不會寫入今天的快照檔，避免用空資料覆蓋掉先前的紀錄。"
+                    "請參考 README「當爬蟲被封鎖時怎麼辦」。"
+                )
+                return 2
 
-    if cfg.get("enrich_shop_names", False):
-        try:
-            enrich_shop_names(session, all_snapshots, delay_range)
-        except Exception:
-            log.exception("查詢賣家名稱時發生例外，略過此步驟（不影響商品資料本身）")
+            if cfg.get("enrich_shop_names", False):
+                try:
+                    enrich_shop_names(page, all_snapshots, delay_range)
+                except Exception:
+                    log.exception("查詢賣家名稱時發生例外，略過此步驟（不影響商品資料本身）")
+        finally:
+            browser.close()
 
     merged = dedupe_by_itemid(all_snapshots)
     merged.sort(key=lambda x: (x["keyword"], -(x["historical_sold"] or 0)))
