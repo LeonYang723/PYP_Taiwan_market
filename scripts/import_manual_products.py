@@ -12,7 +12,17 @@ data/raw/<日期>.jsonl，格式跟自動化爬蟲（scraper/shopee_scraper.py�
 
 若同一份 Excel 裡有好幾個不同日期的資料列，會依日期分別寫成對應的
 data/raw/<日期>.jsonl（同一天的資料寫進同一個檔案；同一天內同一個商品
-出現兩次以最後一列為準）。跑完之後記得接著執行：
+出現兩次以最後一列為準）。
+
+**同一個商品連結、拆成多個規格分開填寫時**（例如同一個蝦皮 listing 裡有
+6 種規格，每種規格的價格不同，逐一填成 6 列、商品連結欄位都貼一樣的網址）：
+腳本會自動偵測「同一個真實 itemid 在同一天出現多筆、但卡套類別或卡套尺寸
+不同」的情況，這時每一列會依 (itemid, 卡套類別, 卡套尺寸) 算一個穩定的
+代用追蹤 ID，避免互相覆蓋掉——但也因為蝦皮公開頁面不會提供「規格別」銷量，
+這些列的「該商品總銷量」通常會是同一個數字（整個 listing 的合併總數，非
+單一規格數字），季報會把這個數字視為個別商品處理，**加總會重複計算**，
+使用時請留意（可以在「備註」欄位說明是共用總數，人工判讀時心裡有數即可，
+系統目前不會自動排除這種重複）。跑完之後記得接著執行：
 
     python scripts/build_reports.py
 
@@ -103,6 +113,11 @@ def main() -> int:
     synthetic_warnings = []
     now_iso = datetime.now(TAIPEI_TZ).isoformat()
 
+    # 先蒐集這一天內每個真實 itemid 出現過幾種不同的 (category, size) 組合，
+    # 用來判斷是不是「同一個 listing 拆成多規格填寫」的情況。
+    variant_seen: dict[tuple[str, int], set] = defaultdict(set)
+    parsed_rows = []
+
     for r in range(FIRST_DATA_ROW, ws.max_row + 1):
         values = [ws.cell(row=r, column=c).value for c in range(1, 10)]
         (date_val, category, size, item_name, shop_name, product_url,
@@ -127,26 +142,59 @@ def main() -> int:
         if is_synthetic:
             synthetic_warnings.append(f"第 {r} 列「{item_name_s}」")
 
+        category_s = str(category).strip() if category else ""
+        size_s = str(size).strip() if size else ""
+        variant_seen[(date_str, itemid)].add((category_s, size_s))
+
+        parsed_rows.append({
+            "date_str": date_str,
+            "row_num": r,
+            "itemid": itemid,
+            "shopid": shopid,
+            "shop_name_s": shop_name_s,
+            "item_name_s": item_name_s,
+            "category_s": category_s,
+            "size_s": size_s,
+            "price": price,
+            "sold": sold,
+            "product_url": product_url,
+        })
+
+    multi_variant_warnings = []
+    for p in parsed_rows:
+        date_str, itemid = p["date_str"], p["itemid"]
+        variants_for_item = variant_seen[(date_str, itemid)]
+        track_id = itemid
+        if len(variants_for_item) > 1:
+            # 同一個真實 itemid、同一天出現多種規格 → 用 (itemid, category, size)
+            # 算一個穩定的代用追蹤 ID，避免同一天內互相覆蓋。
+            variant_key = f"{itemid}|{p['category_s']}|{p['size_s']}"
+            track_id = int(hashlib.md5(variant_key.encode("utf-8")).hexdigest()[:12], 16)
+            multi_variant_warnings.append(
+                f"第 {p['row_num']} 列「{p['item_name_s']}」規格「{p['category_s']}/{p['size_s']}」"
+            )
+
         row = {
             "date": date_str,
             "timestamp": now_iso,
             "keyword": "(手動輸入)",
-            "itemid": itemid,
-            "shopid": shopid,
-            "shop_name": shop_name_s or None,
-            "item_name": item_name_s,
-            "category": str(category).strip() if category else None,
-            "size": str(size).strip() if size else None,
-            "price_twd": to_float(price),
+            "itemid": track_id,
+            "shopee_itemid": itemid,
+            "shopid": p["shopid"],
+            "shop_name": p["shop_name_s"] or None,
+            "item_name": p["item_name_s"],
+            "category": p["category_s"] or None,
+            "size": p["size_s"] or None,
+            "price_twd": to_float(p["price"]),
             "sold_recent": None,
-            "historical_sold": to_int(sold),
+            "historical_sold": to_int(p["sold"]),
             "rating_avg": None,
             "rating_count": None,
             "stock": None,
-            "url": str(product_url or ""),
+            "url": str(p["product_url"] or ""),
             "shop_url": None,
         }
-        rows_by_date[date_str][itemid] = row  # 同一天同一商品，用最後一列覆蓋
+        rows_by_date[date_str][track_id] = row  # 同一天同一商品(或同一規格)，用最後一列覆蓋
 
     if not rows_by_date:
         print("Excel 裡沒有任何有效的資料列（商品名稱是空的），沒有東西可以匯入。")
@@ -168,6 +216,14 @@ def main() -> int:
         print("下次填這些商品時，商品名稱、賣家名稱請盡量打得跟這次一模一樣，")
         print("系統才能認得出是同一個商品、正確算出銷量變化。建議盡量把「商品連結」欄位填完整，")
         print("避免要靠這個備援機制。")
+
+    if multi_variant_warnings:
+        print("\nℹ️  以下商品連結跟別列重複、但卡套類別/尺寸不同，判斷是同一個 listing 拆成")
+        print("   多規格填寫，已各自給一個穩定的代用追蹤 ID（不會互相覆蓋）：")
+        for w in multi_variant_warnings:
+            print("   -", w)
+        print("   請注意：這些列的「該商品總銷量」如果是同一個數字，代表是整個 listing 的")
+        print("   合併總數，季報加總時會重複計算，人工判讀時請留意。")
 
     print("\n完成！接下來執行「python scripts/build_reports.py」重新產生季報/年報。")
     return 0

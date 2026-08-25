@@ -1,1 +1,133 @@
-[]
+[
+  {
+    "period": "2026-Q3",
+    "total_sold_estimate": 0,
+    "total_items": 8,
+    "total_shops": 1,
+    "has_partial_data": false,
+    "items": [
+      {
+        "itemid": 23236661859,
+        "shopid": 2694931,
+        "shop_name": "數碼遊戲_CyberGamer",
+        "shop_url": null,
+        "item_name": "數碼遊戲 貝殼卡磚 寶可夢卡磚 遊戲王卡磚 七龍珠卡磚 PTCG卡磚 球員卡磚 偶像卡磚 壓克力卡磚 卡套 卡冊",
+        "keyword": "(手動輸入)",
+        "category": "貝殼卡磚",
+        "size": "35PT",
+        "price_twd": 18.0,
+        "url": "https://shopee.tw/product/2694931/23236661859",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 259933202086144,
+        "shopid": 2694931,
+        "shop_name": "數碼遊戲_CyberGamer",
+        "shop_url": null,
+        "item_name": "數碼遊戲 透明卡套 寶可夢卡套 遊戲王卡套 七龍珠卡套 PTCG卡套 球員卡套 偶像小卡套 悠遊卡套 硬卡套 直式加厚｜規格：35PT 透明卡套(1包/25個)",
+        "keyword": "(手動輸入)",
+        "category": "軟式卡套(透明)",
+        "size": "35PT",
+        "price_twd": 110.0,
+        "url": "https://shopee.tw/product/2694931/20159650253",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 139291407681124,
+        "shopid": 2694931,
+        "shop_name": "數碼遊戲_CyberGamer",
+        "shop_url": null,
+        "item_name": "數碼遊戲 透明卡套 寶可夢卡套 遊戲王卡套 七龍珠卡套 PTCG卡套 球員卡套 偶像小卡套 悠遊卡套 硬卡套 直式加厚｜規格：35PT 透明黑框卡套(1包/25個)",
+        "keyword": "(手動輸入)",
+        "category": "軟式卡套(透明黑框)",
+        "size": "35PT",
+        "price_twd": 120.0,
+        "url": "https://shopee.tw/product/2694931/20159650253",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 54648265282768,
+        "shopid": 2694931,
+        "shop_name": "數碼遊戲_CyberGamer",
+        "shop_url": null,
+        "item_name": "數碼遊戲 透明卡套 寶可夢卡套 遊戲王卡套 七龍珠卡套 PTCG卡套 球員卡套 偶像小卡套 悠遊卡套 硬卡套 直式加厚｜規格：35PT 磨砂白底卡套(1包/25個)",
+        "keyword": "(手動輸入)",
+        "category": "軟式卡套(磨砂白底)",
+        "size": "35PT",
+        "price_twd": 100.0,
+        "url": "https://shopee.tw/product/2694931/20159650253",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 252786947783593,
+        "shopid": 2694931,
+        "shop_name": "數碼遊戲_CyberGamer",
+        "shop_url": null,
+        "item_name": "數碼遊戲 透明卡套 寶可夢卡套 遊戲王卡套 七龍珠卡套 PTCG卡套 球員卡套 偶像小卡套 悠遊卡套 硬卡套 直式加厚｜規格：35PT 卡套保護膜(1包100個)",
+        "keyword": "(手動輸入)",
+        "category": "卡套保護膜",
+        "size": "35PT",
+        "price_twd": 59.0,
+        "url": "https://shopee.tw/product/2694931/20159650253",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 123453877619024,
+        "shopid": 2694931,
+        "shop_name": "數碼遊戲_CyberGamer",
+        "shop_url": null,
+        "item_name": "數碼遊戲 透明卡套 寶可夢卡套 遊戲王卡套 七龍珠卡套 PTCG卡套 球員卡套 偶像小卡套 悠遊卡套 硬卡套 直式加厚｜規格：130PT 透明卡套(1包/10個)",
+        "keyword": "(手動輸入)",
+        "category": "軟式卡套(透明)",
+        "size": "130PT",
+        "price_twd": 100.0,
+        "url": "https://shopee.tw/product/2694931/20159650253",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 24659036664,
+        "shopid": 2694931,
+        "shop_name": "數碼遊戲_CyberGamer",
+        "shop_url": null,
+        "item_name": "數碼遊戲 35pt 透明 半剛性卡套 PTCG 遊戲王 寶可夢 球員卡 愛豆小卡 偶像小卡 專輯小卡 直式 加厚防水防刮",
+        "keyword": "(手動輸入)",
+        "category": "半硬式卡套(Semi-Rigid)",
+        "size": "35PT",
+        "price_twd": 150.0,
+        "url": "https://shopee.tw/product/2694931/24659036664",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 135432441572931,
+        "shopid": 2694931,
+        "shop_name": "數碼遊戲_CyberGamer",
+        "shop_url": null,
+        "item_name": "數碼遊戲 透明卡套 寶可夢卡套 遊戲王卡套 七龍珠卡套 PTCG卡套 球員卡套 偶像小卡套 悠遊卡套 硬卡套 直式加厚｜規格：130PT 卡套保護膜(1包100個)",
+        "keyword": "(手動輸入)",
+        "category": "卡套保護膜",
+        "size": "130PT",
+        "price_twd": 69.0,
+        "url": "https://shopee.tw/product/2694931/20159650253",
+        "sold_estimate": 0,
+        "partial": false
+      }
+    ],
+    "shops": [
+      {
+        "shopid": 2694931,
+        "shop_name": "數碼遊戲_CyberGamer",
+        "shop_url": null,
+        "sold_estimate": 0,
+        "item_count": 8,
+        "partial": false
+      }
+    ]
+  }
+]

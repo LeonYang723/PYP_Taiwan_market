@@ -1,6 +1,9 @@
 {
-  "last_updated": "2026-08-25T05:38:43.760212+08:00",
-  "status": "no_data",
-  "message": "尚未有任何快照資料，請先用 scripts/import_manual_products.py 匯入手動蒐集表的資料。",
-  "days_tracked": 0
+  "last_updated": "2026-08-25T15:53:09.387760+08:00",
+  "status": "ok",
+  "days_tracked": 1,
+  "first_date": "2026-08-24",
+  "last_date": "2026-08-24",
+  "total_items_ever_seen": 22,
+  "total_items_latest": 22
 }
