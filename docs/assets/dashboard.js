@@ -101,6 +101,51 @@ function setupPager(selectEl, infoEl, rows, pageSize, renderFn) {
   return { refresh: build };
 }
 
+// ---- 賣家下拉篩選 ----
+// 從一組商品列（需含 shopid / shop_name）算出不重複的賣家清單，依商品數量排序。
+// 目前系統只追蹤一個賣家，但架構上已經支援之後新增賣場時自動出現在下拉選單裡，
+// 不需要再改前端程式碼。
+function buildShopOptions(rows) {
+  const map = new Map();
+  (rows || []).forEach((r) => {
+    if (r.shopid === null || r.shopid === undefined) return;
+    const key = String(r.shopid);
+    if (!map.has(key)) {
+      map.set(key, { key, name: r.shop_name || `賣家 #${r.shopid}`, count: 0 });
+    }
+    map.get(key).count += 1;
+  });
+  return Array.from(map.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "zh-Hant"));
+}
+
+// directoryRows：用來決定下拉選單「有哪些賣家可選」的資料來源（建議用 latest.json，
+// 因為它代表目前完整的賣家名錄，不會因為切換季/年而讓賣家清單忽多忽少）。
+// onChange(selectedShopKey) 在選單初始化、以及每次使用者切換時都會被呼叫一次。
+function setupShopFilter(selectEl, directoryRows, onChange) {
+  const shops = buildShopOptions(directoryRows);
+  selectEl.innerHTML = "";
+
+  const allOpt = document.createElement("option");
+  allOpt.value = "";
+  allOpt.textContent = shops.length > 1 ? `全部賣家（${shops.length} 家）` : "全部賣家";
+  selectEl.appendChild(allOpt);
+
+  shops.forEach((s) => {
+    const opt = document.createElement("option");
+    opt.value = s.key;
+    opt.textContent = s.name;
+    selectEl.appendChild(opt);
+  });
+
+  selectEl.onchange = () => onChange(selectEl.value);
+  onChange(selectEl.value);
+}
+
+function filterByShop(rows, shopKey) {
+  if (!shopKey) return rows || [];
+  return (rows || []).filter((r) => String(r.shopid ?? "") === shopKey);
+}
+
 // ---- 頂部導覽列 active 狀態 ----
 function markActiveNav(pageKey) {
   document.querySelectorAll(".nav-links a[data-nav]").forEach((a) => {

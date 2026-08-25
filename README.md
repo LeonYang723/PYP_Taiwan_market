@@ -43,9 +43,11 @@
 
 GitHub Pages（docs/ 資料夾，Navy 深藍主題）
    ├─ index.html    總覽頁：統計摘要、季報/年報銷量趨勢圖、賣家排行
-   └─ products.html 商品資料頁：商品排行（價格/尺寸）、目前追蹤中的商品、規格別需求推估
-      （兩頁都讀 docs/data/*.json，共用 assets/style.css、assets/dashboard.js；
-      商品數較多的表格上方有分頁下拉選單可以選頁）
+   ├─ ranking.html  商品排行頁：依期間排名的商品價格/尺寸/預估銷量
+   └─ products.html 商品資料頁：目前追蹤中的商品最新快照、規格別需求推估
+      （三頁都讀 docs/data/*.json，共用 assets/style.css、assets/dashboard.js；
+      商品數較多的表格上方有分頁下拉選單可以選頁；商品排行、商品資料頁
+      都有「賣家」下拉選單，選項來自資料本身，之後新增賣場會自動出現）
 ```
 
 ## 手動資料蒐集流程
@@ -172,7 +174,8 @@ pyp-shopee-tracker/
 │   └── raw/                         # 每次蒐集的快照（.jsonl，一天一檔）
 ├── docs/                            # GitHub Pages 網站根目錄
 │   ├── index.html                   # 總覽頁（統計摘要、銷量趨勢圖、賣家排行）
-│   ├── products.html                # 商品資料頁（商品排行含價格/尺寸、最新快照、規格別需求推估）
+│   ├── ranking.html                 # 商品排行頁（價格/尺寸/預估銷量，可依賣家篩選）
+│   ├── products.html                # 商品資料頁（最新快照、規格別需求推估，可依賣家篩選）
 │   ├── assets/
 │   │   ├── style.css                # 兩頁共用樣式（Navy 深藍主題）
 │   │   └── dashboard.js             # 兩頁共用邏輯（資料載入、格式化、分頁下拉選單）

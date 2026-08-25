@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PYP 蝦皮市場銷量儀表板</title>
+<title>商品排行 — PYP 蝦皮市場銷量儀表板</title>
 <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
@@ -22,8 +22,8 @@
 <div class="wrap">
 
   <header>
-    <h1>總覽</h1>
-    <p class="sub">監控蝦皮台灣站上「PYP」品牌相關商品的市場銷量與商品動態。資料目前由人工定期蒐集後匯入。</p>
+    <h1>商品排行</h1>
+    <p class="sub">依期間排名的商品預估銷量、價格與尺寸。可用下方「賣家」下拉選單篩選——之後追蹤的賣場變多時，這裡會自動列出所有賣家可以切換。</p>
   </header>
 
   <div id="banner-no-data" class="banner warn">
@@ -32,70 +32,52 @@
     再用 scripts/import_manual_products.py 匯入，接著執行 scripts/build_reports.py 產生報表。
   </div>
 
-  <div id="banner-stale" class="banner warn">
-    <strong>資料有一段時間沒更新了。</strong>
-    <span id="stale-detail"></span>
-    資料目前是人工定期蒐集匯入，建議至少每季更新一次。
-  </div>
-
   <div id="banner-partial" class="banner">
     <strong>提醒：</strong>
-    目前顯示的部分銷量估計值標示了 <span class="badge partial">偏低估計</span>，代表系統在該期間開始前還沒開始追蹤這項商品，
+    以下部分銷量估計值標示了 <span class="badge partial">偏低估計</span>，代表系統在該期間開始前還沒開始追蹤這項商品，
     估計值可能低於實際銷量。詳見 README 的計算方式說明。
   </div>
 
   <div id="app" style="display:none">
 
-    <div class="stat-grid">
-      <div class="stat-tile"><div class="label">目前追蹤商品數</div><div class="value" id="stat-items">–</div></div>
-      <div class="stat-tile"><div class="label">目前追蹤賣家數</div><div class="value" id="stat-shops">–</div></div>
-      <div class="stat-tile"><div class="label">已累積追蹤天數</div><div class="value" id="stat-days">–</div></div>
-      <div class="stat-tile"><div class="label">最後更新</div><div class="value" id="stat-updated" style="font-size:16px">–</div></div>
-    </div>
-
     <section>
       <h2>
-        <span>各期預估銷量趨勢</span>
+        <span>商品排行（價格 / 尺寸）</span>
         <span class="controls">
           <button id="btn-quarterly" class="active">季</button>
           <button id="btn-annual">年</button>
-        </span>
-      </h2>
-      <div class="chart-wrap"><svg id="trend-chart" width="100%" height="220"></svg></div>
-      <div id="trend-empty" class="empty-state" style="display:none">目前資料還不足以畫出趨勢圖，至少需要走過一個完整的統計期間。</div>
-    </section>
-
-    <section>
-      <h2>
-        <span>賣家排行</span>
-        <span class="controls">
           <label style="font-size:13px;color:var(--text-secondary)">期間：</label>
           <select id="period-select"></select>
-          <select id="shops-page-select"></select>
+          <label style="font-size:13px;color:var(--text-secondary)">賣家：</label>
+          <select id="shop-select"></select>
+          <select id="items-page-select"></select>
         </span>
       </h2>
       <div class="wide-scroll-wrap">
-        <table id="shops-table">
+        <table id="items-table">
           <thead>
             <tr>
               <th>#</th>
+              <th>商品名稱</th>
               <th>賣家</th>
-              <th class="num">商品數</th>
+              <th class="num">價格</th>
               <th class="num">預估銷量</th>
+              <th>類別</th>
+              <th>尺寸</th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
       </div>
-      <div id="shops-empty" class="empty-state" style="display:none">此期間沒有資料。</div>
-      <div id="shops-pager-info" class="pager-info" style="margin-top:8px"></div>
+      <div id="items-empty" class="empty-state" style="display:none">此期間沒有資料。</div>
+      <div id="items-pager-info" class="pager-info" style="margin-top:8px"></div>
     </section>
 
   </div>
 
   <footer>
     資料來源：蝦皮台灣站公開頁面（人工蒐集記錄，僅供內部市場觀察參考，銷量數字多為估計值）。
-    <br />由人工定期匯入更新。&nbsp;想看商品價格/尺寸排行請到「<a href="ranking.html">商品排行</a>」，最新快照與規格推估請到「<a href="products.html">商品資料</a>」頁。
+    <br />由人工定期匯入更新。&nbsp;賣家排行與銷量趨勢請見「<a href="index.html">總覽</a>」，最新快照與規格推估請見「<a href="products.html">商品資料</a>」。
   </footer>
 
 </div>
@@ -104,16 +86,16 @@
 <script>
 (function () {
   "use strict";
-  markActiveNav("home");
+  markActiveNav("ranking");
 
-  function renderShopsTable(shops) {
-    const tbody = document.querySelector("#shops-table tbody");
-    const emptyEl = document.getElementById("shops-empty");
-    const pageSelect = document.getElementById("shops-page-select");
-    const infoEl = document.getElementById("shops-pager-info");
+  function renderItemsTable(items) {
+    const tbody = document.querySelector("#items-table tbody");
+    const emptyEl = document.getElementById("items-empty");
+    const pageSelect = document.getElementById("items-page-select");
+    const infoEl = document.getElementById("items-pager-info");
     tbody.innerHTML = "";
 
-    if (!shops || shops.length === 0) {
+    if (!items || items.length === 0) {
       emptyEl.style.display = "block";
       pageSelect.style.display = "none";
       infoEl.textContent = "";
@@ -121,15 +103,18 @@
     }
     emptyEl.style.display = "none";
 
-    setupPager(pageSelect, infoEl, shops, 20, (pageRows, startIdx) => {
+    setupPager(pageSelect, infoEl, items, 20, (pageRows, startIdx) => {
       tbody.innerHTML = "";
       pageRows.forEach((row, i) => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${startIdx + i + 1}</td>
+          <td class="name-cell">${itemNameCell(row)}</td>
           <td>${shopLabel(row)}</td>
-          <td class="num">${fmtInt(row.item_count)}</td>
+          <td class="num">${fmtPrice(row.price_twd)}</td>
           <td class="num">${fmtInt(row.sold_estimate)}${row.partial ? '<span class="badge partial">偏低估計</span>' : ""}</td>
+          <td>${escapeHtml(row.category || "")}</td>
+          <td>${escapeHtml(row.size || "")}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -150,19 +135,6 @@
     }
 
     document.getElementById("app").style.display = "block";
-    document.getElementById("stat-items").textContent = fmtInt(meta.total_items_latest);
-    document.getElementById("stat-days").textContent = fmtInt(meta.days_tracked);
-    document.getElementById("stat-updated").textContent = new Date(meta.last_updated).toLocaleString("zh-TW");
-
-    const uniqueShops = new Set((latest || []).map(r => r.shopid));
-    document.getElementById("stat-shops").textContent = fmtInt(uniqueShops.size);
-
-    const staleDays = daysSinceDateString(meta.last_date);
-    if (staleDays >= 100) {
-      document.getElementById("stale-detail").textContent =
-        `最新資料距今已經 ${staleDays} 天沒有更新（最後日期：${meta.last_date}）。`;
-      document.getElementById("banner-stale").classList.add("show");
-    }
 
     const anyPartial = (quarterly || []).some(p => p.has_partial_data) || (annual || []).some(p => p.has_partial_data);
     if (anyPartial) {
@@ -170,8 +142,10 @@
     }
 
     let mode = "quarterly";
+    let shopKey = "";
     const dataByMode = { quarterly: quarterly || [], annual: annual || [] };
     const periodSelect = document.getElementById("period-select");
+    const shopSelect = document.getElementById("shop-select");
 
     function populatePeriodSelect() {
       const periods = dataByMode[mode];
@@ -187,14 +161,22 @@
     function renderForSelectedPeriod() {
       const periods = dataByMode[mode];
       const selected = periods.find(p => p.period === periodSelect.value) || periods[periods.length - 1];
-      renderShopsTable(selected ? selected.shops : []);
+      const items = selected ? selected.items : [];
+      renderItemsTable(filterByShop(items, shopKey));
     }
 
     function refreshAll() {
-      renderTrendChart(dataByMode[mode], "trend-chart", "trend-empty");
       populatePeriodSelect();
       renderForSelectedPeriod();
     }
+
+    // 賣家下拉選單的選項來自 latest.json（目前完整的賣家名錄），
+    // 這樣選單不會因為切換季/年而讓賣家清單忽多忽少；
+    // 之後系統開始追蹤新賣場時，這裡會自動多出新的選項。
+    setupShopFilter(shopSelect, latest, (selectedKey) => {
+      shopKey = selectedKey;
+      renderForSelectedPeriod();
+    });
 
     document.getElementById("btn-quarterly").addEventListener("click", () => {
       mode = "quarterly";
