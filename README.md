@@ -41,9 +41,11 @@
         ▼
 ④ 把 data/raw/ 與 docs/data/ 底下更新的檔案 commit、push 回 repo
 
-GitHub Pages（docs/ 資料夾）
-   └─ index.html 讀取 docs/data/*.json，畫出儀表板
-      （季報/年報趨勢圖、商品排行、賣家排行、規格別需求推估）
+GitHub Pages（docs/ 資料夾，Navy 深藍主題）
+   ├─ index.html    總覽頁：統計摘要、季報/年報銷量趨勢圖、賣家排行
+   └─ products.html 商品資料頁：商品排行（價格/尺寸）、目前追蹤中的商品、規格別需求推估
+      （兩頁都讀 docs/data/*.json，共用 assets/style.css、assets/dashboard.js；
+      商品數較多的表格上方有分頁下拉選單可以選頁）
 ```
 
 ## 手動資料蒐集流程
@@ -169,7 +171,11 @@ pyp-shopee-tracker/
 ├── data/
 │   └── raw/                         # 每次蒐集的快照（.jsonl，一天一檔）
 ├── docs/                            # GitHub Pages 網站根目錄
-│   ├── index.html                   # 儀表板頁面
+│   ├── index.html                   # 總覽頁（統計摘要、銷量趨勢圖、賣家排行）
+│   ├── products.html                # 商品資料頁（商品排行含價格/尺寸、最新快照、規格別需求推估）
+│   ├── assets/
+│   │   ├── style.css                # 兩頁共用樣式（Navy 深藍主題）
+│   │   └── dashboard.js             # 兩頁共用邏輯（資料載入、格式化、分頁下拉選單）
 │   └── data/                        # build_reports.py / import_variant_estimates.py 產生的 JSON，前端讀這裡
 ├── .github/workflows/
 │   └── scrape.yml                   # 自動化爬蟲排程（目前已關閉，僅供手動測試）

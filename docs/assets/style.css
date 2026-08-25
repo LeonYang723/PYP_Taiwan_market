@@ -1,0 +1,198 @@
+/* PYP 蝦皮市場儀表板 — 共用樣式（Navy 深藍主題） */
+
+:root {
+  --bg:             #090e1c;
+  --surface:        #121a30;
+  --surface-2:      #0d1526;
+  --surface-raised: #17213b;
+  --text-primary:   #eef1f8;
+  --text-secondary: #a6b0c9;
+  --text-muted:     #6c7893;
+  --gridline:       #223055;
+  --baseline:       #2e3f66;
+  --border:         rgba(255,255,255,0.08);
+  --border-strong:  rgba(255,255,255,0.14);
+
+  --accent:         #4d8dff;
+  --accent-soft:    rgba(77,141,255,0.14);
+  --series-1:       #4d8dff;
+  --series-2:       #ff9a5c;
+  --series-3:       #34d1a6;
+  --status-good:    #34d1a6;
+  --status-warn:    #f4b740;
+  --status-crit:    #ff6b7a;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+}
+body { padding: 0 0 64px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 24px 16px 0; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---- Top nav ---- */
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+}
+.topnav-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.topnav .brand {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.2px;
+}
+.topnav .brand:hover { text-decoration: none; opacity: 0.85; }
+.nav-links { display: flex; gap: 4px; }
+.nav-links a {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 999px;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-links a:hover { text-decoration: none; color: var(--text-primary); background: var(--surface-raised); }
+.nav-links a.active { color: #fff; background: var(--accent); }
+
+/* ---- Header ---- */
+header h1 { font-size: 21px; margin: 4px 0 4px; }
+header p.sub { color: var(--text-secondary); margin: 0 0 20px; font-size: 13px; }
+
+/* ---- Banners ---- */
+.banner {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  display: none;
+}
+.banner.show { display: block; }
+.banner.warn { border-left: 3px solid var(--status-warn); }
+.banner strong { color: var(--text-primary); }
+
+/* ---- Stat tiles ---- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.stat-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.stat-tile .label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.stat-tile .value {
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: proportional-nums;
+  color: var(--text-primary);
+}
+.stat-tile .value small { font-size: 13px; color: var(--text-secondary); font-weight: 400; }
+
+/* ---- Section cards ---- */
+section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+section h2 {
+  font-size: 15px;
+  margin: 0 0 14px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+section h2 .controls { display: flex; gap: 8px; align-items: center; font-weight: 400; flex-wrap: wrap; }
+section p.section-note { font-size: 12px; color: var(--text-muted); margin: -6px 0 14px; }
+
+select, button {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+select:focus, button:focus { outline: 1px solid var(--accent); outline-offset: 1px; }
+button { cursor: pointer; }
+button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.pager-info { font-size: 12px; color: var(--text-muted); }
+
+/* ---- Chart ---- */
+.chart-wrap { overflow-x: auto; }
+svg text { fill: var(--text-secondary); font-size: 11px; font-family: inherit; }
+.bar-value { fill: var(--text-primary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.grid-line { stroke: var(--gridline); stroke-width: 1; }
+.baseline { stroke: var(--baseline); stroke-width: 1; }
+
+/* ---- Tables ---- */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.wide-scroll-wrap { display: block; overflow-x: auto; }
+th, td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--gridline);
+  white-space: nowrap;
+}
+th { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.name-cell { white-space: normal; max-width: 300px; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: var(--surface-raised); }
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+.badge.partial { color: var(--status-warn); border-color: var(--status-warn); }
+
+.empty-state {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 24px 0;
+  text-align: center;
+}
+
+footer { color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 32px; padding: 0 16px; }
+footer a { color: var(--text-muted); text-decoration: underline; }
