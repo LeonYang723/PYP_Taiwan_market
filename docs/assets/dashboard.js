@@ -34,15 +34,40 @@ function shopLabel(row) {
   return `<a href="${url}" target="_blank" rel="noopener">${escapeHtml(text)}</a>`;
 }
 
-// 商品名稱通常是蝦皮 SEO 關鍵字堆疊出來的長標題（例如「數碼遊戲 透明卡套 寶可夢卡套
-// 遊戲王卡套 七龍珠卡套…｜規格：35PT 透明卡套(1包/25個)」），這裡擷取「重點文字」給
-// 表格顯示：標題最前面的核心詞 + 規格描述（如果有），完整原始標題保留在連結的滑鼠
-// 提示文字（title attribute）裡，不會遺失資訊。
-function shortenItemName(name) {
+// 商品名稱通常是蝦皮 SEO 關鍵字堆疊出來的長標題，裡面塞滿賣家自己想被搜到的關鍵字
+// （例如「數碼遊戲 透明卡套 寶可夢卡套 遊戲王卡套 七龍珠卡套 PTCG卡套 球員卡套…｜規格：
+// 35PT 透明卡套(1包/25個)」），這些關鍵字對辨識「這是哪個商品」沒有幫助，表格顯示只
+// 會讓人眼花。這裡改成優先用手動填表時已經整理乾淨的「卡套類別」「卡套尺寸」欄位組出
+// 簡稱（這兩欄本來就是人工填的乾淨分類，不含賣家關鍵字），完全不去解析標題本身：
+//   1. 如果標題裡有「｜規格：...」這種每個規格各自的說明（多規格 listing 拆列時填的），
+//      直接取規格說明本身（例如「35PT 透明卡套(1包/25個)」），不要標題前面賣家自己加的
+//      詞（例如「數碼遊戲」「寶可夢卡套」這些）。
+//   2. 否則用「卡套尺寸 + 卡套類別」組出來（例如「35PT 貝殼卡磚」「100PT 磁吸卡磚(標準)」），
+//      尺寸已經包含在類別文字裡的話（例如類別本身就寫了「130~180PT通用」）就不重複加。
+//   3. 只有在完全沒有類別資料可用時（例如「規格別市場需求推估」區塊沒有 category/size
+//      欄位），才退回舊的「擷取標題前幾個字」做法。
+// 完整原始標題永遠保留在連結的滑鼠提示文字（title attribute）裡，不會遺失資訊。
+function shortenItemName(rowOrName) {
+  const row = (typeof rowOrName === "string") ? { item_name: rowOrName } : (rowOrName || {});
+  const name = String(row.item_name || "").trim();
   if (!name) return "";
-  const s = String(name).trim();
-  const specMatch = s.match(/[｜|]\s*規格[:：]\s*(.+)$/);
-  const base = s.split(/[｜|]/)[0].trim();
+
+  const specMatch = name.match(/[｜|]\s*規格[:：]\s*(.+)$/);
+  if (specMatch && specMatch[1].trim()) {
+    return specMatch[1].trim();
+  }
+
+  const category = String(row.category || "").trim();
+  const size = String(row.size || "").trim();
+  if (category) {
+    if (size && size !== "-" && !category.includes(size)) {
+      return `${size} ${category}`;
+    }
+    return category;
+  }
+
+  // 沒有 category/size 可用時的備援：擷取標題前面一小段文字。
+  const base = name.split(/[｜|]/)[0].trim();
   const words = base.split(/\s+/).filter(Boolean);
   let short = "";
   for (const w of words) {
@@ -51,17 +76,12 @@ function shortenItemName(name) {
     if (short.length >= 10) break;
   }
   if (!short) short = base.slice(0, 16);
-  if (specMatch) {
-    let spec = specMatch[1].trim();
-    if (spec.length > 26) spec = spec.slice(0, 26) + "…";
-    return `${short}｜${spec}`;
-  }
   return short + (base.length > short.length ? "…" : "");
 }
 
 function itemNameCell(row) {
   const full = escapeHtml(row.item_name || "");
-  const short = escapeHtml(shortenItemName(row.item_name));
+  const short = escapeHtml(shortenItemName(row));
   return `<a href="${escapeHtml(row.url || "#")}" target="_blank" rel="noopener" title="${full}">${short}</a>`;
 }
 
