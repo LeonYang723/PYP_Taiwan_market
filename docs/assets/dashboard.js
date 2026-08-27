@@ -141,7 +141,9 @@ function buildShopOptions(rows) {
 // directoryRows：用來決定下拉選單「有哪些賣家可選」的資料來源（建議用 latest.json，
 // 因為它代表目前完整的賣家名錄，不會因為切換季/年而讓賣家清單忽多忽少）。
 // onChange(selectedShopKey) 在選單初始化、以及每次使用者切換時都會被呼叫一次。
-function setupShopFilter(selectEl, directoryRows, onChange) {
+// labelEl（選填）：如果表格本身已經不重複顯示「賣家」欄位（改成表格上方顯示目前賣家），
+// 傳入這個元素，選單初始化/切換時會同步更新它的文字。
+function setupShopFilter(selectEl, directoryRows, onChange, labelEl) {
   const shops = buildShopOptions(directoryRows);
   selectEl.innerHTML = "";
 
@@ -157,7 +159,17 @@ function setupShopFilter(selectEl, directoryRows, onChange) {
     selectEl.appendChild(opt);
   });
 
-  selectEl.onchange = () => onChange(selectEl.value);
+  function updateLabel() {
+    if (!labelEl) return;
+    const opt = selectEl.options[selectEl.selectedIndex];
+    labelEl.textContent = opt ? `賣家：${opt.textContent}` : "";
+  }
+
+  selectEl.onchange = () => {
+    updateLabel();
+    onChange(selectEl.value);
+  };
+  updateLabel();
   onChange(selectEl.value);
 }
 

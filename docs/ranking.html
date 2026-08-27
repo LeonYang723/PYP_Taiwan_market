@@ -53,13 +53,13 @@
           <select id="items-page-select"></select>
         </span>
       </h2>
+      <div id="items-shop-label" class="table-shop-label"></div>
       <div class="wide-scroll-wrap">
         <table id="items-table">
           <thead>
             <tr>
               <th>#</th>
               <th>商品名稱</th>
-              <th>賣家</th>
               <th class="num">價格</th>
               <th class="num">預估銷量</th>
               <th>類別</th>
@@ -110,7 +110,6 @@
         tr.innerHTML = `
           <td>${startIdx + i + 1}</td>
           <td class="name-cell">${itemNameCell(row)}</td>
-          <td>${shopLabel(row)}</td>
           <td class="num">${fmtPrice(row.price_twd)}</td>
           <td class="num">${fmtInt(row.sold_estimate)}${row.partial ? '<span class="badge partial">偏低估計</span>' : ""}</td>
           <td>${escapeHtml(row.category || "")}</td>
@@ -176,7 +175,7 @@
     setupShopFilter(shopSelect, latest, (selectedKey) => {
       shopKey = selectedKey;
       renderForSelectedPeriod();
-    });
+    }, document.getElementById("items-shop-label"));
 
     document.getElementById("btn-quarterly").addEventListener("click", () => {
       mode = "quarterly";

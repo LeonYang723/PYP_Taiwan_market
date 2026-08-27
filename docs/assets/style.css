@@ -154,6 +154,15 @@ button.active { background: var(--accent); color: #fff; border-color: var(--acce
 
 .pager-info { font-size: 12px; color: var(--text-muted); }
 
+/* 表格已經不重複顯示「賣家」欄位時，改在表格正上方、靠左顯示目前的賣家名稱
+   （資料來源同一組賣家下拉選單，選單切換時這裡會同步更新）。 */
+.table-shop-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
 /* ---- Chart ---- */
 .chart-wrap { overflow-x: auto; }
 svg text { fill: var(--text-secondary); font-size: 11px; font-family: inherit; }
@@ -172,7 +181,7 @@ th, td {
 }
 th { color: var(--text-muted); font-weight: 500; font-size: 12px; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-td.name-cell { white-space: normal; max-width: 300px; }
+td.name-cell { white-space: normal; max-width: 440px; }
 tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--surface-raised); }
 
