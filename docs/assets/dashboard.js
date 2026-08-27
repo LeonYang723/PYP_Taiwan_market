@@ -186,9 +186,29 @@ function markActiveNav(pageKey) {
 }
 
 // ---- 各期預估銷量趨勢圖（長條圖） ----
+// 手機版容易「跑版」的原因：舊版寫死最小寬度 480px，比大多數手機螢幕寬度（約
+// 360～430px）還寬，導致藍色長條圖那個 <svg> 永遠比手機螢幕寬，只能整組被推出去。
+// 改成：寬度以「圖表外層容器實際可用寬度」為準（手機多寬，圖表就畫多寬），只有在
+// 期數真的很多、容器裝不下時才允許超出寬度、靠 .chart-wrap 的橫向捲動看完整內容；
+// 另外監聽 resize（例如手機轉向、視窗縮放）重新畫一次，寬度才會跟著即時調整。
 function renderTrendChart(periods, svgId, emptyElId) {
   const svg = document.getElementById(svgId);
   const emptyEl = document.getElementById(emptyElId);
+
+  // 記住最近一次資料，讓 resize 事件重畫時知道要畫什麼（只需要綁一次監聽）。
+  svg.__pypLastPeriods = periods;
+  svg.__pypLastEmptyId = emptyElId;
+  if (!svg.__pypResizeBound) {
+    svg.__pypResizeBound = true;
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        renderTrendChart(svg.__pypLastPeriods, svgId, svg.__pypLastEmptyId);
+      }, 150);
+    });
+  }
+
   svg.innerHTML = "";
 
   if (!periods || periods.length === 0) {
@@ -199,7 +219,8 @@ function renderTrendChart(periods, svgId, emptyElId) {
   emptyEl.style.display = "none";
   svg.style.display = "block";
 
-  const W = Math.max(480, periods.length * 90);
+  const containerW = Math.max(240, Math.floor(svg.parentElement.getBoundingClientRect().width) || 480);
+  const W = Math.max(containerW, periods.length * 90);
   const H = 220;
   const padL = 46, padR = 16, padT = 16, padB = 32;
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
