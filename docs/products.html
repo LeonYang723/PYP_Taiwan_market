@@ -49,12 +49,12 @@
           <thead>
             <tr>
               <th>#</th>
-              <th>商品名稱</th>
-              <th class="num">價格</th>
-              <th class="num">累計已售</th>
               <th>類別</th>
               <th>尺寸</th>
+              <th class="num">價格</th>
+              <th class="num">累計已售</th>
               <th>最後看到日期</th>
+              <th>商品名稱</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -111,12 +111,12 @@
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${startIdx + i + 1}</td>
-          <td class="name-cell">${itemNameCell(row)}</td>
-          <td class="num">${fmtPrice(row.price_twd)}</td>
-          <td class="num">${fmtInt(row.historical_sold)}</td>
           <td>${escapeHtml(row.category || "")}</td>
           <td>${escapeHtml(row.size || "")}</td>
+          <td class="num">${fmtPrice(row.price_twd)}</td>
+          <td class="num">${fmtInt(row.historical_sold)}</td>
           <td>${escapeHtml(row.date)}</td>
+          <td class="name-cell">${itemNameCell(row)}</td>
         `;
         tbody.appendChild(tr);
       });
