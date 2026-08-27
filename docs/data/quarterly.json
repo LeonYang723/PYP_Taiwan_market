@@ -2,8 +2,8 @@
   {
     "period": "2026-Q3",
     "total_sold_estimate": 0,
-    "total_items": 8,
-    "total_shops": 1,
+    "total_items": 10,
+    "total_shops": 2,
     "has_partial_data": false,
     "items": [
       {
@@ -117,6 +117,34 @@
         "url": "https://shopee.tw/product/2694931/20159650253",
         "sold_estimate": 0,
         "partial": false
+      },
+      {
+        "itemid": 25760916522,
+        "shopid": 1452838,
+        "shop_name": "放開那隻貓的腳",
+        "shop_url": null,
+        "item_name": "(台灣快速發貨)卡片保護套 35pt貝殼卡磚 卡片保護磚 卡磚 卡套 寶可夢 球員卡 遊戲王 球星卡 獵人",
+        "keyword": "(手動輸入)",
+        "category": "貝殼卡磚",
+        "size": "35PT",
+        "price_twd": 15.0,
+        "url": "https://shopee.tw/product/1452838/25760916522",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 42410736514,
+        "shopid": 1452838,
+        "shop_name": "放開那隻貓的腳",
+        "shop_url": null,
+        "item_name": "四角螺絲卡磚 卡片保護套 寶可夢卡磚 遊戲王卡磚 球員卡 魔法風雲會卡磚 卡套 寶可夢 球員卡 遊戲王 球星卡",
+        "keyword": "(手動輸入)",
+        "category": "螺絲卡磚",
+        "size": "-",
+        "price_twd": 60.0,
+        "url": "https://shopee.tw/product/1452838/42410736514",
+        "sold_estimate": 0,
+        "partial": false
       }
     ],
     "shops": [
@@ -126,6 +154,14 @@
         "shop_url": null,
         "sold_estimate": 0,
         "item_count": 8,
+        "partial": false
+      },
+      {
+        "shopid": 1452838,
+        "shop_name": "放開那隻貓的腳",
+        "shop_url": null,
+        "sold_estimate": 0,
+        "item_count": 2,
         "partial": false
       }
     ]
