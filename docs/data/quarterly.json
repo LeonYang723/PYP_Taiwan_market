@@ -2,7 +2,7 @@
   {
     "period": "2026-Q3",
     "total_sold_estimate": 0,
-    "total_items": 18,
+    "total_items": 22,
     "total_shops": 2,
     "has_partial_data": false,
     "items": [
@@ -257,6 +257,62 @@
         "url": "https://shopee.tw/product/1452838/42410736514",
         "sold_estimate": 0,
         "partial": false
+      },
+      {
+        "itemid": 26526141855,
+        "shopid": 1452838,
+        "shop_name": "放開那隻貓的腳",
+        "shop_url": null,
+        "item_name": "(台灣快速發貨)磁吸卡磚 二連卡磚 三連卡磚 四連卡磚 二格卡磚 三格卡磚 四格卡磚 寶可夢卡磚 遊戲王卡磚",
+        "keyword": "(手動輸入)",
+        "category": "磁吸卡磚(多連)",
+        "size": "多規格(單片/2連/3連/4連/螺絲3連-黑邊款)",
+        "price_twd": null,
+        "url": "https://shopee.tw/product/1452838/26526141855",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 28450604988,
+        "shopid": 1452838,
+        "shop_name": "放開那隻貓的腳",
+        "shop_url": null,
+        "item_name": "磁吸補充包卡磚 卡包卡磚 卡牌補充包卡包 卡包收藏磁鐵殼卡磚 540PT 卡片補充包 寶可夢卡包磚 獵人卡磚",
+        "keyword": "(手動輸入)",
+        "category": "磁吸補充包卡磚",
+        "size": "540PT",
+        "price_twd": 89.0,
+        "url": "https://shopee.tw/product/1452838/28450604988",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 279599431067055,
+        "shopid": 1452838,
+        "shop_name": "放開那隻貓的腳",
+        "shop_url": null,
+        "item_name": "卡片保護套 透明硬卡套（25入）一箱40組",
+        "keyword": "(手動輸入)",
+        "category": "硬卡套(整箱批發)",
+        "size": "35PT",
+        "price_twd": 3945.0,
+        "url": "https://shopee.tw/product/1452838/29863357197",
+        "sold_estimate": 0,
+        "partial": false
+      },
+      {
+        "itemid": 212494747533365,
+        "shopid": 1452838,
+        "shop_name": "放開那隻貓的腳",
+        "shop_url": null,
+        "item_name": "卡片保護套 透明硬卡套（25入）一箱40組",
+        "keyword": "(手動輸入)",
+        "category": "硬卡套(整箱批發)",
+        "size": "55PT",
+        "price_twd": 5845.0,
+        "url": "https://shopee.tw/product/1452838/29863357197",
+        "sold_estimate": 0,
+        "partial": false
       }
     ],
     "shops": [
@@ -273,7 +329,7 @@
         "shop_name": "放開那隻貓的腳",
         "shop_url": null,
         "sold_estimate": 0,
-        "item_count": 10,
+        "item_count": 14,
         "partial": false
       }
     ]
