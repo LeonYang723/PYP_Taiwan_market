@@ -65,6 +65,31 @@
     </section>
 
     <section>
+      <h2>
+        <span>商品月增量比較（每月消化速度）</span>
+        <span class="controls">
+          <label style="font-size:13px;color:var(--text-secondary)">賣家：</label>
+          <select id="monthly-shop-select"></select>
+        </span>
+      </h2>
+      <p class="section-note">
+        蝦皮頁面顯示的「已售出 N」是上架以來的<strong style="color:var(--text-secondary)">累計</strong>銷量，單看這個數字沒辦法回答「這個
+        SKU 台灣一個月大概消化多少」。這裡改成：每次人工蒐集記錄的累計銷量視為一次快照，用「這個月最後一次快照
+        − 上個月最後一次快照」算出<strong style="color:var(--text-secondary)">當月增量</strong>，逐月排開比較——只要固定每月同一天左右記錄一次快照，
+        這欄數字就是逐月的實際消化速度。「趨勢」欄是同一列各月增量的小長條圖，滑鼠移過去可以看到該月數字。
+      </p>
+      <div id="monthly-shop-label" class="table-shop-label"></div>
+      <div id="monthly-not-enough" class="empty-state" style="display:none"></div>
+      <div id="monthly-matrix-wrap" class="wide-scroll-wrap">
+        <table id="monthly-matrix-table">
+          <thead><tr id="monthly-matrix-head"></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="monthly-matrix-empty" class="empty-state" style="display:none">目前沒有資料。</div>
+    </section>
+
+    <section>
       <h2><span>規格別市場需求推估</span></h2>
       <p class="section-note">
         以下數字是<strong style="color:var(--text-secondary)">推估值</strong>，不是蝦皮公開的精確銷量——蝦皮只公開「整個商品」的總銷量，
@@ -197,10 +222,132 @@
     });
   }
 
+  // ---- 商品月增量比較（矩陣表 + 每列一個小型長條趨勢圖）----
+  // monthly.json 是一個 list，每個元素代表一個月（period="YYYY-MM"），裡面的 items
+  // 是「那個月」各商品的估計銷量增量。這裡把它轉成「橫向比較」的形狀：
+  // 一列 = 一個商品，一欄 = 一個月份，儲存格 = 那個月的增量。
+  const MAX_MONTHLY_COLS = 8; // 欄位太多表格會很長，只顯示最近 N 個月，更久以前的可以之後加篩選
+
+  function buildMonthlyMatrix(monthly) {
+    const periods = (monthly || []).map((p) => p.period).slice().sort();
+    const itemMap = new Map();
+    (monthly || []).forEach((p) => {
+      (p.items || []).forEach((it) => {
+        if (!itemMap.has(it.itemid)) {
+          itemMap.set(it.itemid, {
+            itemid: it.itemid,
+            shopid: it.shopid,
+            shop_name: it.shop_name,
+            item_name: it.item_name,
+            category: it.category,
+            size: it.size,
+            url: it.url,
+            months: {},
+          });
+        }
+        itemMap.get(it.itemid).months[p.period] = { est: it.sold_estimate, partial: it.partial };
+      });
+    });
+    return { periods, rows: Array.from(itemMap.values()) };
+  }
+
+  function renderMonthlySparkline(row, shownPeriods) {
+    const vals = shownPeriods.map((p) => (row.months[p] ? row.months[p].est : null));
+    const maxVal = Math.max(1, ...vals.map((v) => v || 0));
+    const w = 90, h = 26, gap = 2;
+    const barW = Math.max(2, (w - gap * (vals.length - 1)) / vals.length);
+    let bars = "";
+    vals.forEach((v, i) => {
+      const x = i * (barW + gap);
+      if (v === null || v === undefined) {
+        bars += `<rect x="${x}" y="${h - 3}" width="${barW}" height="3" rx="1" fill="var(--gridline)"><title>${shownPeriods[i]}：無資料</title></rect>`;
+        return;
+      }
+      const barH = Math.max(2, (v / maxVal) * (h - 4));
+      bars += `<rect x="${x}" y="${h - barH}" width="${barW}" height="${barH}" rx="1" fill="var(--series-1)"><title>${shownPeriods[i]}：${v.toLocaleString("zh-TW")} 件</title></rect>`;
+    });
+    return `<svg width="${w}" height="${h}" style="display:block">${bars}</svg>`;
+  }
+
+  function renderMonthlyMatrixTable(matrix, shopKey) {
+    const notEnoughEl = document.getElementById("monthly-not-enough");
+    const emptyEl = document.getElementById("monthly-matrix-empty");
+    const wrapEl = document.getElementById("monthly-matrix-wrap");
+    const headRow = document.getElementById("monthly-matrix-head");
+    const tbody = document.querySelector("#monthly-matrix-table tbody");
+    headRow.innerHTML = "";
+    tbody.innerHTML = "";
+
+    const allPeriods = matrix.periods;
+    const rows = filterByShop(matrix.rows, shopKey);
+
+    if (allPeriods.length === 0 || rows.length === 0) {
+      notEnoughEl.style.display = "none";
+      wrapEl.style.display = "none";
+      emptyEl.style.display = "block";
+      return;
+    }
+
+    if (allPeriods.length < 2) {
+      emptyEl.style.display = "none";
+      wrapEl.style.display = "none";
+      notEnoughEl.style.display = "block";
+      notEnoughEl.textContent =
+        `目前只有 ${allPeriods.length} 個月份的快照（${allPeriods.join("、")}），月增量比較至少需要 2 個月份的資料才有意義，` +
+        `等下次匯入新的一輪快照後這裡才會開始顯示逐月比較。`;
+      return;
+    }
+
+    notEnoughEl.style.display = "none";
+    emptyEl.style.display = "none";
+    wrapEl.style.display = "block";
+
+    const shownPeriods = allPeriods.slice(-MAX_MONTHLY_COLS);
+    const latestPeriod = shownPeriods[shownPeriods.length - 1];
+
+    headRow.innerHTML =
+      `<th>商品名稱</th><th>趨勢</th>` +
+      shownPeriods.map((p) => `<th class="num">${p}</th>`).join("");
+
+    rows.sort((a, b) => {
+      const av = (a.months[latestPeriod] && a.months[latestPeriod].est) || 0;
+      const bv = (b.months[latestPeriod] && b.months[latestPeriod].est) || 0;
+      if (bv !== av) return bv - av;
+      const sumA = shownPeriods.reduce((s, p) => s + ((a.months[p] && a.months[p].est) || 0), 0);
+      const sumB = shownPeriods.reduce((s, p) => s + ((b.months[p] && b.months[p].est) || 0), 0);
+      return sumB - sumA;
+    });
+
+    rows.forEach((row) => {
+      const tr = document.createElement("tr");
+      const cells = shownPeriods
+        .map((p) => {
+          const cell = row.months[p];
+          if (!cell) return `<td class="num">–</td>`;
+          return `<td class="num">${fmtInt(cell.est)}${cell.partial ? '<span class="badge partial">偏低</span>' : ""}</td>`;
+        })
+        .join("");
+      tr.innerHTML =
+        `<td class="name-cell">${itemNameCell(row)}</td>` +
+        `<td>${renderMonthlySparkline(row, shownPeriods)}</td>` +
+        cells;
+      tbody.appendChild(tr);
+    });
+
+    if (allPeriods.length > MAX_MONTHLY_COLS) {
+      const note = document.createElement("div");
+      note.className = "pager-info";
+      note.style.marginTop = "8px";
+      note.textContent = `目前共有 ${allPeriods.length} 個月份的資料，這裡只顯示最近 ${MAX_MONTHLY_COLS} 個月。`;
+      wrapEl.parentElement.insertBefore(note, emptyEl);
+    }
+  }
+
   async function main() {
-    const [meta, latest, variantEstimates] = await Promise.all([
+    const [meta, latest, monthly, variantEstimates] = await Promise.all([
       loadJSON("data/meta.json"),
       loadJSON("data/latest.json"),
+      loadJSON("data/monthly.json"),
       loadJSON("data/variant_estimates.json"),
     ]);
 
@@ -218,6 +365,12 @@
     setupShopFilter(shopSelect, latestRows, (selectedKey) => {
       renderLatestTable(filterByShop(latestRows, selectedKey));
     }, document.getElementById("latest-shop-label"));
+
+    const monthlyMatrix = buildMonthlyMatrix(monthly);
+    const monthlyShopSelect = document.getElementById("monthly-shop-select");
+    setupShopFilter(monthlyShopSelect, latestRows, (selectedKey) => {
+      renderMonthlyMatrixTable(monthlyMatrix, selectedKey);
+    }, document.getElementById("monthly-shop-label"));
 
     renderVariantEstimates(variantEstimates);
   }

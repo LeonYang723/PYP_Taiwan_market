@@ -20,8 +20,17 @@
 ----------------------------------------------------
 - meta.json       整體統計摘要（追蹤天數、商品數、最後更新時間等）
 - latest.json     目前追蹤中的商品清單（最新一次快照）
+- monthly.json    依「年-月」彙整的銷量估計（商品層級 + 賣家層級 + 整體彙總）
 - quarterly.json  依「年-季」彙整的銷量估計（商品層級 + 賣家層級 + 整體彙總）
 - annual.json     依「年」彙整的銷量估計
+
+2026-08-28 追加「月報」：算法跟季報/年報完全一樣（該月賣出估計值 = 月末前最後一次
+快照的累計銷量 - 月初前最後一次快照的累計銷量），只是週期換成自然月。這是使用者
+提出的需求：「累計快照 → 差值換算週期銷量」這件事本來就是季報/年報的核心邏輯，只
+是原本顆粒度停在季，這裡把同一套 build_period_report() 邏輯直接套用在月週期上，
+不需要另外設計算法。**前提是使用者的人工蒐集要盡量固定在每個月同一天附近記錄一次
+快照**，快照間隔差太多的話，「這個月」跟「上個月」的可比較性會下降（例如某個月漏
+了沒記錄，下個月的估計值會被合併成兩個月的量）。
 """
 
 from __future__ import annotations
@@ -58,6 +67,15 @@ def load_all_snapshots() -> list[dict]:
 
 def quarter_of(date: datetime) -> int:
     return (date.month - 1) // 3 + 1
+
+
+def month_bounds(year: int, month: int) -> tuple[datetime, datetime]:
+    start = datetime(year, month, 1, tzinfo=TAIPEI_TZ)
+    if month == 12:
+        end = datetime(year + 1, 1, 1, tzinfo=TAIPEI_TZ)
+    else:
+        end = datetime(year, month + 1, 1, tzinfo=TAIPEI_TZ)
+    return start, end
 
 
 def quarter_bounds(year: int, quarter: int) -> tuple[datetime, datetime]:
@@ -211,13 +229,24 @@ def main() -> int:
         (OUT_DIR / "meta.json").write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        for name in ("latest.json", "quarterly.json", "annual.json"):
+        for name in ("latest.json", "monthly.json", "quarterly.json", "annual.json"):
             (OUT_DIR / name).write_text("[]", encoding="utf-8")
         print("沒有任何快照資料可彙整。已輸出空白報表。")
         return 0
 
     by_item = build_item_timeseries(rows)
     all_dates = sorted({r["date"] for r in rows})
+
+    # --- 月報 ---
+    months_seen: set[tuple[int, int]] = set()
+    for d in all_dates:
+        dt = datetime.strptime(d, "%Y-%m-%d")
+        months_seen.add((dt.year, dt.month))
+    month_periods = []
+    for year, m in sorted(months_seen):
+        start, end = month_bounds(year, m)
+        month_periods.append((f"{year}-{m:02d}", start, end))
+    monthly_report = build_period_report(by_item, month_periods)
 
     # --- 季報 ---
     quarters_seen: set[tuple[int, int]] = set()
@@ -256,6 +285,9 @@ def main() -> int:
     )
     (OUT_DIR / "latest.json").write_text(
         json.dumps(latest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (OUT_DIR / "monthly.json").write_text(
+        json.dumps(monthly_report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     (OUT_DIR / "quarterly.json").write_text(
         json.dumps(quarterly_report, ensure_ascii=False, indent=2), encoding="utf-8"

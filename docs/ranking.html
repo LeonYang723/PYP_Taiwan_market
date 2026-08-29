@@ -44,6 +44,7 @@
       <h2>
         <span>商品排行（價格 / 尺寸）</span>
         <span class="controls">
+          <button id="btn-monthly">月</button>
           <button id="btn-quarterly" class="active">季</button>
           <button id="btn-annual">年</button>
           <label style="font-size:13px;color:var(--text-secondary)">期間：</label>
@@ -121,9 +122,10 @@
   }
 
   async function main() {
-    const [meta, latest, quarterly, annual] = await Promise.all([
+    const [meta, latest, monthly, quarterly, annual] = await Promise.all([
       loadJSON("data/meta.json"),
       loadJSON("data/latest.json"),
+      loadJSON("data/monthly.json"),
       loadJSON("data/quarterly.json"),
       loadJSON("data/annual.json"),
     ]);
@@ -135,14 +137,15 @@
 
     document.getElementById("app").style.display = "block";
 
-    const anyPartial = (quarterly || []).some(p => p.has_partial_data) || (annual || []).some(p => p.has_partial_data);
+    const anyPartial = (monthly || []).some(p => p.has_partial_data) || (quarterly || []).some(p => p.has_partial_data) || (annual || []).some(p => p.has_partial_data);
     if (anyPartial) {
       document.getElementById("banner-partial").classList.add("show");
     }
 
     let mode = "quarterly";
     let shopKey = "";
-    const dataByMode = { quarterly: quarterly || [], annual: annual || [] };
+    const dataByMode = { monthly: monthly || [], quarterly: quarterly || [], annual: annual || [] };
+    const modeButtons = { monthly: "btn-monthly", quarterly: "btn-quarterly", annual: "btn-annual" };
     const periodSelect = document.getElementById("period-select");
     const shopSelect = document.getElementById("shop-select");
 
@@ -177,18 +180,16 @@
       renderForSelectedPeriod();
     }, document.getElementById("items-shop-label"));
 
-    document.getElementById("btn-quarterly").addEventListener("click", () => {
-      mode = "quarterly";
-      document.getElementById("btn-quarterly").classList.add("active");
-      document.getElementById("btn-annual").classList.remove("active");
+    function setMode(newMode) {
+      mode = newMode;
+      Object.entries(modeButtons).forEach(([m, btnId]) => {
+        document.getElementById(btnId).classList.toggle("active", m === newMode);
+      });
       refreshAll();
-    });
-    document.getElementById("btn-annual").addEventListener("click", () => {
-      mode = "annual";
-      document.getElementById("btn-annual").classList.add("active");
-      document.getElementById("btn-quarterly").classList.remove("active");
-      refreshAll();
-    });
+    }
+    document.getElementById("btn-monthly").addEventListener("click", () => setMode("monthly"));
+    document.getElementById("btn-quarterly").addEventListener("click", () => setMode("quarterly"));
+    document.getElementById("btn-annual").addEventListener("click", () => setMode("annual"));
     periodSelect.addEventListener("change", renderForSelectedPeriod);
 
     refreshAll();
