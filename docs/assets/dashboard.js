@@ -178,6 +178,57 @@ function filterByShop(rows, shopKey) {
   return (rows || []).filter((r) => String(r.shopid ?? "") === shopKey);
 }
 
+// ---- 品牌下拉篩選（「其他品牌」頁面用）----
+// 跟賣家篩選是同一套邏輯，只是分組欄位換成 brand。用來讓使用者在「其他品牌」
+// 頁面切換只看某一個品牌（例如只看 DEI DOW）跟 PYP 比較，或看全部品牌。
+function buildBrandOptions(rows) {
+  const map = new Map();
+  (rows || []).forEach((r) => {
+    const brand = (r.brand || "").trim();
+    if (!brand) return;
+    if (!map.has(brand)) {
+      map.set(brand, { key: brand, name: brand, count: 0 });
+    }
+    map.get(brand).count += 1;
+  });
+  return Array.from(map.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "zh-Hant"));
+}
+
+function setupBrandFilter(selectEl, directoryRows, onChange, labelEl) {
+  const brands = buildBrandOptions(directoryRows);
+  selectEl.innerHTML = "";
+
+  const allOpt = document.createElement("option");
+  allOpt.value = "";
+  allOpt.textContent = brands.length > 1 ? `全部品牌（${brands.length} 個）` : "全部品牌";
+  selectEl.appendChild(allOpt);
+
+  brands.forEach((b) => {
+    const opt = document.createElement("option");
+    opt.value = b.key;
+    opt.textContent = `${b.name}（${b.count}）`;
+    selectEl.appendChild(opt);
+  });
+
+  function updateLabel() {
+    if (!labelEl) return;
+    const opt = selectEl.options[selectEl.selectedIndex];
+    labelEl.textContent = opt ? `品牌：${opt.value ? opt.value : "全部品牌"}` : "";
+  }
+
+  selectEl.onchange = () => {
+    updateLabel();
+    onChange(selectEl.value);
+  };
+  updateLabel();
+  onChange(selectEl.value);
+}
+
+function filterByBrand(rows, brandKey) {
+  if (!brandKey) return rows || [];
+  return (rows || []).filter((r) => String(r.brand ?? "") === brandKey);
+}
+
 // ---- 頂部導覽列 active 狀態 ----
 function markActiveNav(pageKey) {
   document.querySelectorAll(".nav-links a[data-nav]").forEach((a) => {

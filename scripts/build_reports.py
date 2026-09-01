@@ -42,14 +42,15 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RAW_DATA_DIR = REPO_ROOT / "data" / "raw"
+RAW_OTHER_BRANDS_DIR = REPO_ROOT / "data" / "raw_other_brands"
 OUT_DIR = REPO_ROOT / "docs" / "data"
 TAIPEI_TZ = timezone(timedelta(hours=8))
 
 
-def load_all_snapshots() -> list[dict]:
+def load_all_snapshots(raw_dir: Path = RAW_DATA_DIR) -> list[dict]:
     """讀取所有每日快照檔，回傳攤平後的 list，每筆多帶一個 date 欄位方便排序。"""
     rows: list[dict] = []
-    for path in sorted(RAW_DATA_DIR.glob("*.jsonl")):
+    for path in sorted(raw_dir.glob("*.jsonl")):
         date_str = path.stem  # YYYY-MM-DD
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
@@ -175,6 +176,7 @@ def build_period_report(
                     "keyword": latest_in_period.get("keyword"),
                     "category": latest_in_period.get("category"),
                     "size": latest_in_period.get("size"),
+                    "brand": latest_in_period.get("brand"),
                     "price_twd": latest_in_period.get("price_twd"),
                     "url": latest_in_period.get("url"),
                     "sold_estimate": est,
@@ -201,6 +203,25 @@ def build_period_report(
             shop_totals[shopid]["partial"] = shop_totals[shopid]["partial"] or row["partial"]
         shop_rows = sorted(shop_totals.values(), key=lambda x: -x["sold_estimate"])
 
+        # 品牌彙總（只有「其他品牌商品」資料集會有 brand 欄位；主要 PYP 資料集
+        # 這裡 brand 一律是 None，brands 會是空陣列，不影響現有頁面）。
+        brand_totals: dict[str, dict] = {}
+        for row in item_rows:
+            brand = row.get("brand")
+            if not brand:
+                continue
+            if brand not in brand_totals:
+                brand_totals[brand] = {
+                    "brand": brand,
+                    "sold_estimate": 0,
+                    "item_count": 0,
+                    "partial": False,
+                }
+            brand_totals[brand]["sold_estimate"] += row["sold_estimate"]
+            brand_totals[brand]["item_count"] += 1
+            brand_totals[brand]["partial"] = brand_totals[brand]["partial"] or row["partial"]
+        brand_rows = sorted(brand_totals.values(), key=lambda x: -x["sold_estimate"])
+
         report.append(
             {
                 "period": label,
@@ -210,13 +231,58 @@ def build_period_report(
                 "has_partial_data": any(r["partial"] for r in item_rows),
                 "items": item_rows,
                 "shops": shop_rows,
+                "brands": brand_rows,
             }
         )
     return report
 
 
+def build_periods_for_rows(rows: list[dict]) -> dict[str, list]:
+    """給一組 rows（可能是主要 PYP 資料集，也可能是其他品牌資料集），
+    彙整出 by_item 時間序列，以及月/季/年三種週期報表。回傳字典，
+    keys: by_item, monthly, quarterly, annual, all_dates。"""
+    by_item = build_item_timeseries(rows)
+    all_dates = sorted({r["date"] for r in rows})
+
+    months_seen: set[tuple[int, int]] = set()
+    for d in all_dates:
+        dt = datetime.strptime(d, "%Y-%m-%d")
+        months_seen.add((dt.year, dt.month))
+    month_periods = []
+    for year, m in sorted(months_seen):
+        start, end = month_bounds(year, m)
+        month_periods.append((f"{year}-{m:02d}", start, end))
+    monthly_report = build_period_report(by_item, month_periods)
+
+    quarters_seen: set[tuple[int, int]] = set()
+    for d in all_dates:
+        dt = datetime.strptime(d, "%Y-%m-%d")
+        quarters_seen.add((dt.year, quarter_of(dt)))
+    quarter_periods = []
+    for year, q in sorted(quarters_seen):
+        start, end = quarter_bounds(year, q)
+        quarter_periods.append((f"{year}-Q{q}", start, end))
+    quarterly_report = build_period_report(by_item, quarter_periods)
+
+    years_seen = sorted({datetime.strptime(d, "%Y-%m-%d").year for d in all_dates})
+    annual_periods = [
+        (str(y), datetime(y, 1, 1, tzinfo=TAIPEI_TZ), datetime(y + 1, 1, 1, tzinfo=TAIPEI_TZ))
+        for y in years_seen
+    ]
+    annual_report = build_period_report(by_item, annual_periods)
+
+    return {
+        "by_item": by_item,
+        "all_dates": all_dates,
+        "monthly": monthly_report,
+        "quarterly": quarterly_report,
+        "annual": annual_report,
+    }
+
+
 def main() -> int:
-    rows = load_all_snapshots()
+    rows = load_all_snapshots(RAW_DATA_DIR)
+    other_rows = load_all_snapshots(RAW_OTHER_BRANDS_DIR)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     if not rows:
@@ -234,38 +300,12 @@ def main() -> int:
         print("沒有任何快照資料可彙整。已輸出空白報表。")
         return 0
 
-    by_item = build_item_timeseries(rows)
-    all_dates = sorted({r["date"] for r in rows})
-
-    # --- 月報 ---
-    months_seen: set[tuple[int, int]] = set()
-    for d in all_dates:
-        dt = datetime.strptime(d, "%Y-%m-%d")
-        months_seen.add((dt.year, dt.month))
-    month_periods = []
-    for year, m in sorted(months_seen):
-        start, end = month_bounds(year, m)
-        month_periods.append((f"{year}-{m:02d}", start, end))
-    monthly_report = build_period_report(by_item, month_periods)
-
-    # --- 季報 ---
-    quarters_seen: set[tuple[int, int]] = set()
-    for d in all_dates:
-        dt = datetime.strptime(d, "%Y-%m-%d")
-        quarters_seen.add((dt.year, quarter_of(dt)))
-    quarter_periods = []
-    for year, q in sorted(quarters_seen):
-        start, end = quarter_bounds(year, q)
-        quarter_periods.append((f"{year}-Q{q}", start, end))
-    quarterly_report = build_period_report(by_item, quarter_periods)
-
-    # --- 年報 ---
-    years_seen = sorted({datetime.strptime(d, "%Y-%m-%d").year for d in all_dates})
-    annual_periods = [
-        (str(y), datetime(y, 1, 1, tzinfo=TAIPEI_TZ), datetime(y + 1, 1, 1, tzinfo=TAIPEI_TZ))
-        for y in years_seen
-    ]
-    annual_report = build_period_report(by_item, annual_periods)
+    result = build_periods_for_rows(rows)
+    by_item = result["by_item"]
+    all_dates = result["all_dates"]
+    monthly_report = result["monthly"]
+    quarterly_report = result["quarterly"]
+    annual_report = result["annual"]
 
     # --- 最新商品清單 ---
     latest = latest_snapshot_per_item(by_item)
@@ -300,6 +340,63 @@ def main() -> int:
         f"報表完成：追蹤 {len(all_dates)} 天、{len(by_item)} 個不重複商品，"
         f"輸出到 {OUT_DIR}"
     )
+
+    # --- 其他品牌商品（非PYP，市場比較用）---
+    if other_rows:
+        ob_result = build_periods_for_rows(other_rows)
+        ob_by_item = ob_result["by_item"]
+        ob_all_dates = ob_result["all_dates"]
+        ob_latest = latest_snapshot_per_item(ob_by_item)
+
+        ob_meta = {
+            "last_updated": datetime.now(TAIPEI_TZ).isoformat(),
+            "status": "ok",
+            "days_tracked": len(ob_all_dates),
+            "first_date": ob_all_dates[0],
+            "last_date": ob_all_dates[-1],
+            "total_items_ever_seen": len(ob_by_item),
+            "total_items_latest": len(ob_latest),
+            "total_brands_latest": len({r.get("brand") for r in ob_latest if r.get("brand")}),
+        }
+
+        (OUT_DIR / "other_brands_meta.json").write_text(
+            json.dumps(ob_meta, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        (OUT_DIR / "other_brands_latest.json").write_text(
+            json.dumps(ob_latest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        (OUT_DIR / "other_brands_monthly.json").write_text(
+            json.dumps(ob_result["monthly"], ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        (OUT_DIR / "other_brands_quarterly.json").write_text(
+            json.dumps(ob_result["quarterly"], ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        (OUT_DIR / "other_brands_annual.json").write_text(
+            json.dumps(ob_result["annual"], ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(
+            f"其他品牌報表完成：追蹤 {len(ob_all_dates)} 天、{len(ob_by_item)} 個不重複商品、"
+            f"{ob_meta['total_brands_latest']} 個品牌，輸出到 {OUT_DIR}"
+        )
+    else:
+        ob_meta = {
+            "last_updated": datetime.now(TAIPEI_TZ).isoformat(),
+            "status": "no_data",
+            "message": "尚未有任何「其他品牌商品」資料，請先用 scripts/import_other_brands.py 匯入手動蒐集表的「其他品牌商品」工作表。",
+            "days_tracked": 0,
+        }
+        (OUT_DIR / "other_brands_meta.json").write_text(
+            json.dumps(ob_meta, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        for name in (
+            "other_brands_latest.json",
+            "other_brands_monthly.json",
+            "other_brands_quarterly.json",
+            "other_brands_annual.json",
+        ):
+            (OUT_DIR / name).write_text("[]", encoding="utf-8")
+        print("沒有任何「其他品牌商品」資料可彙整，已輸出空白報表。")
+
     return 0
 
 
